@@ -35,6 +35,34 @@ type Level = GameState | null                     // the in-progress level, if a
 
 `GameState` is already JSON-round-trippable (enforced by a test from phase 3), so `Level` persists directly. That is what lets an in-progress level survive a reload — which matters, because a 5-minute break is exactly long enough for someone to accidentally close the tab.
 
+## What does not persist: the combat stream
+
+**Decision: the combat RNG rewinds on reload. Accepted, not fixed.**
+
+An `Rng`'s stream position is mutable state, so it cannot live in `GameState`
+without breaking the JSON round-trip. Rehydrating therefore restarts
+`combatRng(request)` from the top of its stream: reload mid-fight and your
+upcoming rolls are the ones you already had, not the ones you were going to get.
+
+Two consequences, both accepted:
+
+- The "run reconstructible from seed plus inputs" future option in PLAN.md
+  silently stops holding across a reload. That option is explicitly a *weaker*
+  property that nothing depends on, and PLAN.md is clear that reproducibility
+  here is a tool for testing the generator, not a promise to the player.
+- It is save-scummable: a player who loses a fight can reload and re-roll it.
+  Same shape as the walk-away exploit under "The level cap" below, and accepted
+  for the same reason — there is no leaderboard and nobody to cheat but yourself.
+
+**The escape hatch, if this ever matters:** keep a `combatRolls` counter in
+`GameState`, increment it on every draw, and fast-forward the stream that many
+steps on rehydrate. Note the real cost is not the fast-forward but the
+bookkeeping — every combat draw has to go through something that can bump the
+counter, which couples `combat.ts` to state threading it otherwise avoids. That
+is why this is not being built now, and it is why the decision belongs here
+rather than in phase 5: **if you want the counter, it has to go in while combat
+is being written, not afterwards.**
+
 ## The gate
 
 ```ts

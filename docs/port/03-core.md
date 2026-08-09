@@ -50,8 +50,9 @@ Mechanism 2 is the one we drop. Global patching is invisible at the call site, a
 export interface Rng {
   next(): number                              // [0, 1)
   int(maxExclusive: number): number
+  range(lo: number, hi: number): number       // inclusive both ends
   pick<T>(items: readonly T[]): T
-  pickKey<K extends string>(m: Map<PosKey, unknown>): PosKey
+  pickPos<T>(m: PosMap<T>): PosKey
   weighted<T>(items: readonly T[], weight: (item: T) => number): T
   clone(): Rng
 }
@@ -99,4 +100,4 @@ Beyond ergonomics, Immer gives structural sharing, which two things depend on:
 - `GameState` — **one level**, not the whole run: entities, map, moves, message, combatants, outcome, log. Lifetime statistics deliberately live *outside* it, in the run state added by phase 7, because they must survive the level being discarded. The original kept statistics inside game state and had to copy them across on reset (`ui.cljs:314-319`); separating them removes that step.
 - `Outcome` — `'died' | 'descended'`. The name is forward-looking: through phase 6 reaching the shrine simply ends the level as a win, exactly as the original does. Phase 8 gives `'descended'` its literal meaning without a rename. Likewise the encounter fn is called `finishLevel` rather than the original's `finish-game`.
 
-`GameState` must stay JSON-round-trippable. No `Map`, `Set`, `Date`, or function values anywhere in it. Position-keyed maps inside state are plain `Record<PosKey, T>` objects; the `Map` type is used only in transient computation. This is a hard constraint from PLAN.md, and phase 7's persistence depends on it — there is a `structuredClone`-equality test in `src/game/types.test.ts` guarding it.
+`GameState` must stay JSON-round-trippable. No `Map`, `Set`, `Date`, or function values anywhere in it. Position-keyed maps inside state are plain `Record<PosKey, T>` objects; the `Map` type is used only in transient computation. This is a hard constraint from PLAN.md, and phase 7's persistence depends on it — there is a JSON round-trip equality test in `src/game/types.test.ts` guarding it, alongside checks for `undefined`-valued keys and stray function values.

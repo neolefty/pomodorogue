@@ -39,6 +39,17 @@ export interface Stats {
   hpInc: number
 }
 
+/**
+ * A dead entity reduced to what actually gets rendered for it: the tombstone
+ * and share string read nothing but the sprite, and the log wants the name.
+ *
+ * The original stored whole `Entity` copies in `kills`/`killed-by`, which was
+ * harmless there — one level, discarded daily. Here it is not: phase 7 persists
+ * state as JSON and phase 8 carries the player across a whole run, so full
+ * copies would drag every corpse's `drop`/`inventory` subtree along with them.
+ */
+export type EntitySummary = Pick<Entity, 'name' | 'sprite'>
+
 export type AnimationDisposal = 'destroy'
 
 export interface Animation {
@@ -112,8 +123,9 @@ export interface Entity {
   /** Whether this entity's most recent move attempt consumed a turn. */
   moved?: boolean
   animation?: Animation | null
-  killedBy?: Entity | null
-  kills?: Entity[]
+  /** Summaries, not entities — see {@link EntitySummary}. */
+  killedBy?: EntitySummary | null
+  kills?: EntitySummary[]
 }
 
 // ***** map ***** //
@@ -150,15 +162,21 @@ export interface GameMap {
 // ***** level generation ***** //
 
 /**
- * Everything level generation is allowed to depend on.
+ * Everything the **base** level pass is allowed to depend on.
  *
- * A struct rather than two loose parameters, because generation will likely
- * grow inputs beyond the seed: a boss banished to a deeper level, loot the
- * player declined, a monster that fled downstairs. Those arrive as fields here
- * and `makeLevel`'s signature does not change.
+ * Only fields on this type may influence base generation. That is the whole
+ * rule, and it is what keeps "what does a seed control?" answerable at a glance:
+ * the seed fixes the base level at every depth, for every player.
  *
- * Only fields on this type may influence generation. That is the whole rule —
- * it is what keeps "what does a seed control?" answerable at a glance.
+ * **Do not add history fields here.** A boss that fled downstairs, loot the
+ * player declined, bones from an earlier run — those belong to the overlay pass,
+ * which runs on top of a finished base level with its own input struct and its
+ * own RNG stream. Widening this type instead would make the base geometry
+ * depend on how the run went, which is exactly what the two-pass split exists to
+ * prevent. See "Seeds control the world, not the story" in PLAN.md.
+ *
+ * A struct rather than two loose parameters mostly so call sites read well and
+ * `levelSeed`/`combatRng` can share one argument.
  */
 export interface LevelRequest {
   /** Chosen once per run: user-supplied, or random entropy from the edge. */
@@ -219,8 +237,18 @@ export interface GameState {
    */
   nextEntityId: number
   moves: number
-  /** Entities whose health bars are currently shown. Cleared each turn. */
-  combatants: Record<EntityId, Entity>
+  /**
+   * Ids of entities whose health bars are currently shown. Cleared each turn.
+   *
+   * Ids rather than entity copies: the original stored copies and kept their HP
+   * correct only by re-copying every combat round, which is two sources of
+   * truth for the same number. Resolve these against `entities` at render time.
+   *
+   * Keyed by id (a JSON-safe stand-in for a `Set`) so recording the same
+   * combatant twice in one turn — a hit plus its retaliation — cannot produce a
+   * duplicate health bar.
+   */
+  combatants: Record<EntityId, true>
   message: Message | null
   eventModal: EventModal | null
   outcome: Outcome | null

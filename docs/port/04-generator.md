@@ -2,7 +2,28 @@
 
 **Outcome:** `makeLevel(request, content)` returns a complete `GameState` — dungeon map, player, shrine, monsters, covered items. Ports `original/src/rogule/generator.cljs` (337 lines).
 
-`request` is a `LevelRequest` (`src/game/types.ts`), currently `{ runSeed, depth }`. **Generation may depend on that struct and nothing else** — no wall clock, no ambient randomness, no reaching into run state. That single rule is what keeps a future seed feature possible and what makes the generator testable; it is not a demand for exact replayability, which this game does not need. See the "Seeds control the world" section of PLAN.md.
+`request` is a `LevelRequest` (`src/game/types.ts`), permanently `{ runSeed, depth }`. **Generation may depend on that struct and nothing else** — no wall clock, no ambient randomness, no reaching into run state. That single rule is what keeps a future seed feature possible and what makes the generator testable; it is not a demand for exact replayability, which this game does not need.
+
+## This phase builds the base pass
+
+Generation is two stages: a **base pass** pure in `LevelRequest`, and a
+history-driven **overlay pass** layered on top of it (not built, and not
+designed until a feature needs it). The design, the rejected wider-request
+alternative, and the invariants that keep the split honest live in **"Seeds
+control the world, not the story" in PLAN.md — that section is normative**;
+this doc adds only the phase-4 mechanics. **All of phase 4 is the base pass:**
+geometry, base monsters, base loot, and later phase 8's depth scaling.
+
+Phase 4 should therefore name the base pass explicitly:
+
+```ts
+export function makeBaseLevel(request: LevelRequest, content: ContentProvider): GameState
+export const makeLevel = makeBaseLevel   // until an overlay exists
+```
+
+Keeping the base name from day one means the overlay arrives as a new function composed around this one, rather than as edits inside it.
+
+When the overlay does land, two sequencing details will matter and are easy to miss: `state.counts` must be computed *after* it, or the "3 of 5 mushrooms" bars will not count overlay items; and overlay entities keep allocating from `nextEntityId`, so they stay deterministic as long as the overlay runs after the base pass, never interleaved with it.
 
 **Status:** not started.
 
@@ -62,11 +83,19 @@ Placement functions must not import `builtin.ts` directly. They take a provider:
 
 ```ts
 export interface ContentProvider {
-  monsters(): readonly MonsterTemplate[]
-  forageItems(): readonly ItemTemplate[]
-  itemCovers(): readonly CoverTemplate[]
+  monsters(request: LevelRequest): readonly MonsterTemplate[]
+  forageItems(request: LevelRequest): readonly ItemTemplate[]
+  itemCovers(request: LevelRequest): readonly CoverTemplate[]
 }
 ```
+
+**Every method takes the `LevelRequest`, even though nothing needs it yet.**
+Level themes (per-depth monster/item/cover mixes), phase 8's depth-shifted
+monster table, and phase 9's per-`(runSeed, depth)` AI content all want exactly
+this input, and they all arrive through this interface. `builtinContent` ignores
+the argument, so adding it now costs nothing; adding it later means changing the
+signature and every placement call site — precisely the retrofit this interface
+exists to prevent.
 
 Phase 4 implements exactly one, `builtinContent`, returning the static tables. The interface exists so phase 9 can add a provider that fetches AI-generated monsters and sprites without touching any placement code. Templates must stay plain JSON-serializable data — no functions — for the same reason `GameState` does.
 
@@ -80,8 +109,8 @@ Do not reintroduce `crypto.randomUUID` here or in the engine — the same counte
 
 ## Tests to write
 
-- Same `LevelRequest` → deep-equal `GameState`. Write it first. It is the cheapest broad regression test the generator will have — any accidental dependency on ambient state fails it — and it only passes because entity ids come from the counter above.
+- Same `LevelRequest` → deep-equal `GameState`. Write it first. It is the cheapest broad regression test the generator will have — any accidental dependency on ambient state fails it — and it only passes because entity ids come from the counter above. **Bind it to `makeBaseLevel`, not to `makeLevel`**, so that it keeps testing "two scalars in, same level out" after an overlay exists.
 - Different depth → different map. Same depth, different `runSeed` → different map.
 - The combat stream does not perturb generation: draw a few hundred rolls from `combatRng(request)` and confirm `makeLevel(request)` is unchanged.
-- Player start position is walkable and the shrine is reachable from it. The original never checks this; it happens to hold because the shrine is placed at the end of a computed path. Assert it anyway — depth scaling in phase 8 could break it.
+- Player start position is walkable and the shrine is reachable from it. The original never checks this; it happens to hold because the shrine is placed at the end of a computed path. Assert it anyway — depth scaling in phase 8 could break it. Write it against the *composed* `makeLevel`, not the base pass: when an overlay exists it can wall off a corridor with a new monster, and the level the player actually gets is the one that has to be playable.
 - Entity counts match the requested `entityCount`/`monsterCount` (15 and 5 in the original).

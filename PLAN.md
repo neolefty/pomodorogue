@@ -81,9 +81,26 @@ A future "play seed 12345" feature is allowed for, not built. What such a seed w
 
 So two players on the same seed walk the same dungeon and have different runs. That is the right split, and it is the reason the two streams are kept apart.
 
-**The seam for history-dependent generation** is `LevelRequest` in `src/game/types.ts`. Generation may depend on that struct and nothing else. When "the boss you fled from is waiting three levels down" or "the loot you passed up reappears deeper" arrive, they become fields on it — `makeLevel`'s signature does not change, and the question "what does a seed control?" stays answerable by reading one type.
+**The seam for history-dependent generation is a second pass, not a wider request.** Generation is specified as two stages:
 
-Note the consequence: once generation depends on history, a seed no longer means two players get the same dungeon, because their histories differ. It means *your* run is reconstructible from seed plus inputs. That is a different and weaker property, and worth deciding on deliberately if the feature is ever built.
+1. **Base pass** — `makeBaseLevel(request, content)`, a pure function of `LevelRequest` (`{ runSeed, depth }`) and nothing else. Map geometry, base monster placement, base loot, depth difficulty scaling. This is the whole of phase 4.
+2. **Overlay pass** — applied on top of a finished base level, driven by what has happened: a boss that fled downstairs, a shopkeeper you double-crossed, bones left by a previous run, AI-generated content from phase 9.
+
+The tempting alternative — grow `LevelRequest` with history fields and let one pass read all of it — was considered and rejected. It contaminates the base: the moment history reaches `levelSeed`, two players on the same seed no longer share *any* geometry, and the generator's determinism test degrades from "two scalars in, same level out" to "same history fixture in, same level out," which is a far weaker regression net for a far higher setup cost.
+
+Keeping the passes apart preserves a crisper answer to "what does a seed control?":
+
+- **The seed alone fixes the base level at every depth.** Two players on seed 12345 walk the same rooms and meet the same base monsters at depth 7, whatever they each did on the way down.
+- **History controls only what is layered on top**, and the overlay is where the run's story shows up.
+- **Your own run stays reconstructible from seed plus inputs**, for everything internal to it — seed the overlay stream from `hashSeed(runSeed, depth, historyDigest)` rather than from ambient entropy and this comes for free. Genuinely external inputs (bones files from other runs, a server's AI content) are not reproducible, and that is fine; they are inputs, not randomness.
+
+Three invariants make the split hold. Write them into the overlay when it is built:
+
+- **The overlay may add entities and change entity properties. It may not change map geometry.** Geometry is what makes two players' dungeons recognizably the same, and it is what the phase-4 regression test actually guards. If some feature eventually must collapse a corridor, that is a deliberate exception, not a convenience.
+- **Validity assertions run after the overlay, not after the base.** An overlay boss dropped into the only corridor can make the exit unreachable. The base pass being provably fine is not the property that matters — the level the player gets is.
+- **`ContentProvider` must be pure with respect to its request.** The base pass calls it, so a provider that returns different content for the same `LevelRequest` breaks base determinism from the outside. Phase 9's AI provider satisfies this by caching per `(runSeed, depth)`; see [09-server.md](docs/port/09-server.md).
+
+Phase 4 builds the base pass only. The overlay is a named seam with no implementation — `makeLevel` is just `makeBaseLevel` until the first history feature needs it.
 
 ### Entropy is injected at the edge
 

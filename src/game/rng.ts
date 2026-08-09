@@ -50,9 +50,10 @@ export const hashSeed = (...parts: (string | number)[]): number => djb2a(parts.j
  * The seed for one level. Derived from the run seed and depth, so a run seed
  * fixes the layout of *every* level in the run, not only the first.
  *
- * Deliberately takes the whole `LevelRequest`: when generation grows to depend
- * on run history, the extra inputs get folded in here and every caller keeps
- * working. See docs/port/04-generator.md.
+ * **Run history must never be folded in here.** History-dependent content is a
+ * separate overlay pass with its own stream; the base level stays a function of
+ * the run seed and depth alone, so two players on one seed share a dungeon.
+ * See "Seeds control the world, not the story" in PLAN.md.
  */
 export const levelSeed = (request: LevelRequest): number =>
   hashSeed(request.runSeed, request.depth)

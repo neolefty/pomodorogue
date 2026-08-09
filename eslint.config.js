@@ -3,7 +3,11 @@ import ts from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 
 export default ts.config(
-  { ignores: ['dist', 'node_modules', 'src/game/sprites.ts'] },
+  // Flat config does not read .gitignore — ignores must be repeated here, and
+  // patterns are root-relative unless globbed, so `dist` alone misses a nested
+  // one. Agent worktrees under .claude/worktrees are full checkouts complete
+  // with their own src/ and dist/, which is why they need excluding at all.
+  { ignores: ['**/dist', '**/node_modules', '.claude', 'src/game/sprites.ts'] },
   js.configs.recommended,
   ...ts.configs.recommended,
   {

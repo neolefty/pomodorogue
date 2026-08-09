@@ -6,7 +6,7 @@
 
 ## The change in one line
 
-`finishGame` becomes `descend`: instead of setting `outcome: 'ascended'` and ending, it increments `run.depth`, snapshots the player's carry state, and clears the current level so the next cycle generates a deeper one.
+`finishLevel` becomes `descend`: instead of setting `outcome: 'descended'` and ending, it increments `run.depth`, snapshots the player's carry state, and clears the current level so the next cycle generates a deeper one.
 
 ## Stairs replace the shrine
 

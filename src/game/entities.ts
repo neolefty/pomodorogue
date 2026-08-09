@@ -70,7 +70,18 @@ export function countEntities(entities: Iterable<Entity>, name: string): number 
 
 export const getPlayer = (state: GameState): Entity | undefined => state.entities['player']
 
-/** Allocates the next entity id. Deterministic, unlike the original's random UUIDs. */
+/**
+ * Allocates the next entity id. Deterministic, unlike the original's random UUIDs.
+ *
+ * **Draft/builder-only:** this mutates `state.nextEntityId`, so it is valid only
+ * inside an Immer `produce` draft or on a state still under construction during
+ * generation. The guard makes a violation fail loudly by name, rather than as a
+ * bare readonly-property TypeError — or, if Immer's auto-freeze were ever
+ * disabled, as a silent duplicate id.
+ */
 export function allocId(state: { nextEntityId: number }): EntityId {
+  if (Object.isFrozen(state)) {
+    throw new Error('allocId: state is frozen; call it inside produce() or during generation')
+  }
   return `e${state.nextEntityId++}`
 }

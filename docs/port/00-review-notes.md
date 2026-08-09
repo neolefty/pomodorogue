@@ -8,6 +8,35 @@ amendments for the *upcoming* phases, not rework of the finished ones. Each
 section names the phase it lands in; fold items 1 and 4 into their phase docs
 before starting phase 4/5.
 
+## Disposition (2026-08-09)
+
+The prep pass is done — items 1–5 are folded into the docs and code, tree still
+green at 34 tests. **Items 6 and 7 remain open by design.** Nothing here needs
+re-reading before phase 4 except item 7.
+
+| # | Status |
+|---|---|
+| 1. `ContentProvider` takes `LevelRequest` | ✅ folded into `04-generator.md` |
+| 2. Slim snapshots | ✅ **done in code** — landed early, see below |
+| 3. Combat stream on reload | ✅ decided: rewind accepted, written into `07-pomodoro.md` |
+| 4. Drop follows its monster | ✅ folded into `05-engine.md` + its test list |
+| 5. Doc drift | ✅ all four fixed |
+| 6. Post-port renames | ⏸ open, deferred to after phase 6 as intended |
+| 7. Hold the phase-4 determinism test | ⏸ open — **an instruction for whoever writes phase 4** |
+
+Two corrections to the notes below, found while applying them:
+
+- Item 2 lists `kills`/`killedBy` as `GameState` fields; they are actually on
+  `Entity` (the player's own). Only `combatants` is on `GameState`. The concern
+  was right and slightly understated — the player entity is exactly what phase 8
+  carries across levels.
+- Item 2 was applied **now rather than in phase 5**. Nothing writes these fields
+  yet, so it was a free type change; deferring it would have meant writing
+  combat against types we already knew were wrong.
+
+Item 3's decision was pulled forward for the opposite reason: its escape hatch
+is a *phase 5* code change, so it had to be settled before combat gets written.
+
 ## Operating facts
 
 | | |
@@ -49,9 +78,11 @@ correct because combat re-copies each round (two sources of truth for HP).
 
 Fix when these fields first get written in phase 5:
 
-- `combatants` → `EntityId[]`, resolved against `state.entities` at render.
-- `kills` and `killedBy` → a slim summary type `{ name: string; sprite: Sprite }`
-  — all the tombstone renders anyway.
+- `combatants` → `Record<EntityId, true>`, resolved against `state.entities` at
+  render. Keyed rather than an array so the same id cannot be recorded twice in
+  one turn.
+- `kills` and `killedBy` → a slim summary type (`EntitySummary`, a
+  `Pick<Entity, 'name' | 'sprite'>`) — all the tombstone renders anyway.
 
 Update `types.ts` and its serializability test accordingly.
 

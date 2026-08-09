@@ -31,7 +31,7 @@ export const ENCOUNTER_FNS = {
   increaseHp,
   addItemToInventory,
   uncoverItem,
-  finishGame,
+  finishLevel,
 } as const satisfies Record<string, EncounterFn>
 
 export type EncounterFnName = keyof typeof ENCOUNTER_FNS
@@ -67,6 +67,13 @@ Health regeneration: `restore-player-health` increments a counter each move and 
 
 Write the combat tests against a fixed-seed RNG before refactoring anything here.
 
+Combat draws from `combatRng(request)`, a stream kept separate from generation's
+so that consuming rolls at a player-determined rate cannot shift what the
+generator produces. Its position is *not* persisted — see "What does not persist:
+the combat stream" in [07-pomodoro.md](07-pomodoro.md). That is a settled
+decision, but it is settled here: reversing it means threading a roll counter
+through every draw below, which is far cheaper to do now than to retrofit.
+
 ## Turn sequence
 
 From `process-arrow-key!` (`engine.cljs:365-401`). The order matters:
@@ -76,6 +83,38 @@ From `process-arrow-key!` (`engine.cljs:365-401`). The order matters:
 3. If the game did not end **and** the player actually moved: increment moves → restore health → update monsters → expire messages.
 
 A blocked move still counts as a turn if `moved` is set (combat sets it), but a move into a wall does not. `moveTo` with a null position means "rest", which sets `moved` and costs a turn.
+
+## Port trap: a mover's drop follows it
+
+In `move-to`, a successful move also reassigns the mover's `drop.pos` to the new
+position (`engine.cljs:88`):
+
+```clojure
+(update-in [:entities id :drop] #(when % (assoc % :pos new-pos)))
+```
+
+Note it sits on the `passable-tile?` branch only — the drop follows on an actual
+advance, not on a blocked move or a rest. Miss the line and a monster killed
+after it has chased you across the map drops its loot back at its *spawn* point.
+Playtesting will not reliably catch that; the test below will.
+
+## Recording kills and combatants
+
+`types.ts` deliberately departs from the original here, so port these two by
+intent rather than line-for-line:
+
+- `state.combatants` is `Record<EntityId, true>`, not a map of entity copies.
+  Set `combatants[id] = true`; the UI resolves ids against `state.entities` at
+  render. The original re-copied each combatant every round to keep its HP bar
+  honest — with ids there is only one source of truth and nothing to refresh.
+  Keying by id also means a hit and its retaliation in the same turn record the
+  monster once, not twice. The render lookup must tolerate a miss: an id can
+  outlive its entity within a turn (e.g. a monster destroyed by its death
+  animation's `disposal` before the next per-turn clear), so skip ids that no
+  longer resolve rather than assuming they do.
+- `entity.kills` and `entity.killedBy` hold `EntitySummary` (`{ name, sprite }`),
+  not whole entities. Build the summary at the kill site. Everything downstream
+  reads only the sprite, plus `kills.length` for the every-second-kill XP rule.
 
 ## Deliberate omissions
 
@@ -88,5 +127,6 @@ A blocked move still counts as a turn if `moved` is set (combat sets it), but a 
 - Combat is deterministic under a fixed seed.
 - Armour fully absorbing damage yields `hpReduction === 0` and no death.
 - Killing an entity sets `dead`, moves it to the `floor` layer, swaps its sprite to the skull, drops its item, and strips its `update`/`encounter` fns — the original does all five in one place (`engine.cljs:307-316`) and missing one produces a corpse that still chases you.
+- A monster that moves several tiles and is then killed drops its loot **where it died**, not where it spawned (see the `move-to` trap above).
 - Player death sets `outcome: 'died'`.
 - A full turn through `takeTurn` advances `moves` by exactly 1.

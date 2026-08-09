@@ -20,7 +20,7 @@ Sprites already being `{ url }` rather than inlined base64 ([02-sprites.md](02-s
 
 - Small Node/Hono service, nothing like the original's express/passport/sqlite stack — there are no user accounts here.
 - Generate **ahead of time**, not on demand. A player descending should never wait on an image model. Generate the next depth's content during the 25-minute work interval, which is the one genuinely useful thing about having a long gap between levels.
-- Cache generated content by `(runSeed, depth)` so a reload does not regenerate, and so determinism survives.
+- Cache generated content by `(runSeed, depth)` so a reload does not regenerate, and so determinism survives. This is not just an optimization: **a `ContentProvider` must be a pure function of its `LevelRequest`** (the rule and its rationale live in "Seeds control the world, not the story" in PLAN.md), and caching per `(runSeed, depth)` is how a nondeterministic model is made to satisfy that contract. Content that genuinely cannot be pinned to a request belongs in the overlay pass instead.
 - Validate LLM output against the template schema before it reaches the generator, and fall back to the built-in table on any failure. A content service being down must never block play.
 
 ## Do not
