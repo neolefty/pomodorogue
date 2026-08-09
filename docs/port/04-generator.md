@@ -1,6 +1,8 @@
 # Phase 4 — Generator
 
-**Outcome:** `makeLevel(seed, depth, content)` returns a complete `GameState` — dungeon map, player, shrine, monsters, covered items — deterministically. Ports `original/src/rogule/generator.cljs` (337 lines).
+**Outcome:** `makeLevel(request, content)` returns a complete `GameState` — dungeon map, player, shrine, monsters, covered items. Ports `original/src/rogule/generator.cljs` (337 lines).
+
+`request` is a `LevelRequest` (`src/game/types.ts`), currently `{ runSeed, depth }`. **Generation may depend on that struct and nothing else** — no wall clock, no ambient randomness, no reaching into run state. That single rule is what keeps a future seed feature possible and what makes the generator testable; it is not a demand for exact replayability, which this game does not need. See the "Seeds control the world" section of PLAN.md.
 
 **Status:** not started.
 
@@ -70,9 +72,16 @@ Phase 4 implements exactly one, `builtinContent`, returning the static tables. T
 
 Monster templates are ordered by difficulty in `monster-table` and indexed positionally, so **the array order is load-bearing**. A provider that returns monsters in arbitrary order will produce nonsense difficulty curves. Document that in the interface, and have `builtinContent` keep the original's ordering (rat → bat → ghost → boar → wolf → ogre → zombie → vampire → genie → dragon → t-rex).
 
+## Entity ids must not be random
+
+The original's `make-id` slices a random UUID, so its generated levels are *not* actually reproducible even given a fixed seed. Since determinism is the whole point of the RNG work in phase 3, this is replaced: `GameState.nextEntityId` is a counter and `allocId(state)` (in `src/game/entities.ts`) hands out `e0`, `e1`, … Deterministic, serializable, and easier to read in a debugger.
+
+Do not reintroduce `crypto.randomUUID` here or in the engine — the same counter serves runtime-spawned entities like collision markers and smoke puffs.
+
 ## Tests to write
 
-- Same seed + same depth → deep-equal `GameState`. This is the test that protects the whole determinism story; write it first.
-- Different depth → different map.
+- Same `LevelRequest` → deep-equal `GameState`. Write it first. It is the cheapest broad regression test the generator will have — any accidental dependency on ambient state fails it — and it only passes because entity ids come from the counter above.
+- Different depth → different map. Same depth, different `runSeed` → different map.
+- The combat stream does not perturb generation: draw a few hundred rolls from `combatRng(request)` and confirm `makeLevel(request)` is unchanged.
 - Player start position is walkable and the shrine is reachable from it. The original never checks this; it happens to hold because the shrine is placed at the end of a computed path. Assert it anyway — depth scaling in phase 8 could break it.
 - Entity counts match the requested `entityCount`/`monsterCount` (15 and 5 in the original).

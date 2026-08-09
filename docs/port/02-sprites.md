@@ -14,7 +14,23 @@
 | Generated SVGs (committed) | `public/sprites/*.svg` |
 | Source data | `node_modules/emoji.json` (names → codepoints), `node_modules/twemoji-emojis/vendor/svg/` (the artwork) |
 
-Both outputs are **committed to the repo** so a fresh clone runs without the codegen step. Re-run `npm run gen:sprites` only when adding a new sprite to the list.
+Both outputs are **committed to the repo** so a fresh clone runs without the codegen step. Re-run `npm run gen:sprites` only when adding a new sprite to `SPRITE_NAMES`.
+
+### `twemoji-emojis` is not installed by default
+
+It is *not* in `devDependencies`. Its dependency chain (`download` → `decompress`, `got`) accounts for six advisories including two criticals, and since the generated output is committed it is needed only when the sprite list changes. Leaving it out keeps `npm audit` at zero on a public repo.
+
+To add a sprite:
+
+```sh
+npm i -D twemoji-emojis     # temporarily
+npm run gen:sprites
+npm uninstall -D twemoji-emojis
+```
+
+The script checks for it and prints exactly this instruction if it is missing, so a future session hitting the error does not have to work it out.
+
+`emoji.json` *is* a normal devDependency — it has no transitive dependencies at all.
 
 ## What the original did
 
@@ -26,17 +42,18 @@ A codegen script that reads the same two data sources and emits a TypeScript mod
 
 ```ts
 export const SPRITES = {
-  dragon: { name: 'dragon', codes: '1F409', char: '🐉', url: '/sprites/1f409.svg' },
+  'dragon': { name: 'dragon', codes: '1F409', char: '🐉', url: '/sprites/1f409.svg' },
   // ...
-} as const
+} as const satisfies Record<string, Sprite>
 
 export type SpriteName = keyof typeof SPRITES
-export type Sprite = (typeof SPRITES)[SpriteName]
 ```
 
 `SpriteName` being a literal union preserves the macro's best property — `SPRITES.dragn` doesn't compile — while also giving editor autocompletion, which the macro never did.
 
-The list of sprites to generate lives in `SPRITE_NAMES` at the top of the script. It was seeded by grepping every `load-sprite` call in the original.
+The list of sprites to generate lives in `SPRITE_NAMES` at the top of the script. It was seeded by grepping every `load-sprite` call in the original, minus the ad and feedback sprites that went with those dropped sections; 32 sprites in total.
+
+Note `Sprite.name` is typed `string`, not `SpriteName`. Typing it as the union creates a circular reference, since `SpriteName` is derived from `SPRITES`, which the interface constrains. Individual entries still carry their literal name type through `as const`.
 
 ## Why URLs instead of base64 inlining
 

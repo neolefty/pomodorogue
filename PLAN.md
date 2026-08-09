@@ -18,9 +18,10 @@ These are working documents for the port, not long-term reference. Delete `docs/
 | Dev server | `npm run dev` |
 | Typecheck | `npm run typecheck` |
 | Tests | `npm test` |
-| Regenerate sprite index | `npm run gen:sprites` |
-| License | **AGPL-3.0** — inherited from the original, not optional |
-| Attribution | Original game by Chris McCormick. Keep the credit in `README.md` and `LICENSE`. |
+| Lint | `npm run lint` |
+| Regenerate sprite index | `npm i -D twemoji-emojis && npm run gen:sprites && npm uninstall -D twemoji-emojis` — see [02-sprites.md](docs/port/02-sprites.md) |
+| License | **AGPL-3.0** — inherited from the original, not optional. See `NOTICE.md`. |
+| Attribution | Original game by Chris McCormick. `README.md` and `NOTICE.md` carry it; phase 6 must also put a source link in the UI (AGPL §13). |
 
 **Terminology** (used consistently across these docs and the code):
 
@@ -29,6 +30,8 @@ These are working documents for the port, not long-term reference. Delete `docs/
 - **depth** — 1-based level number within a run.
 - **cycle** — one 25-minute work interval followed by one level.
 - **seed** — `runSeed` is per-run; each level's seed is derived as `hashSeed(runSeed, depth)`.
+
+`GameState` holds exactly one level. Run-scoped things — carried inventory, depth, lifetime statistics — live outside it, in the run state that phase 7 introduces.
 
 ---
 
@@ -58,9 +61,33 @@ These were settled before the port started. Change them deliberately, not incide
 
 ### Explicit RNG, no global `Math.random` patching
 
-The original seeds `Math.random` globally via `seedrandom(..., {global: true})` (`original/src/rogule/ui.cljs:312`), and the generator then calls bare `Math.random`/`rand-nth`. That works for one level per day but breaks the moment a run has several levels that each need independent, reproducible streams.
+The original seeds `Math.random` globally via `seedrandom(..., {global: true})` (`original/src/rogule/ui.cljs:312`), and the generator then calls bare `Math.random`/`rand-nth`. That works for one level per day but breaks the moment a run has several levels that each need independent streams.
 
 Instead: an explicit `Rng` object threaded through generation (`src/game/rng.ts`). Nothing in `src/game/` may call `Math.random` directly — there is a lint rule for this. See [03-core.md](docs/port/03-core.md).
+
+**Reproducibility is a tool here, not a product promise.** Rogule needed exact replays because everyone played the same daily dungeon and compared results. Pomodorogue has no such requirement — nobody is comparing runs. Seeded generation is kept for two reasons only:
+
+1. It is the cheapest possible regression test for the generator ("same request → same level").
+2. It leaves the door open to an optional seed feature. See below.
+
+Do not add complexity in the name of determinism beyond what those two justify.
+
+### Seeds control the world, not the story
+
+A future "play seed 12345" feature is allowed for, not built. What such a seed would and would not fix:
+
+- **Fixed by the seed:** the layout, item placement, and monster placement of *every* level in the run — not just the first. Level seeds derive as `hashSeed(runSeed, depth)`, so depth 7 is as determined as depth 1.
+- **Not fixed by the seed:** anything the player does. Combat draws from a separate stream (`combatRng`) precisely so that consuming rolls at a player-determined rate cannot shift what the generator produces.
+
+So two players on the same seed walk the same dungeon and have different runs. That is the right split, and it is the reason the two streams are kept apart.
+
+**The seam for history-dependent generation** is `LevelRequest` in `src/game/types.ts`. Generation may depend on that struct and nothing else. When "the boss you fled from is waiting three levels down" or "the loot you passed up reappears deeper" arrive, they become fields on it — `makeLevel`'s signature does not change, and the question "what does a seed control?" stays answerable by reading one type.
+
+Note the consequence: once generation depends on history, a seed no longer means two players get the same dungeon, because their histories differ. It means *your* run is reconstructible from seed plus inputs. That is a different and weaker property, and worth deciding on deliberately if the feature is ever built.
+
+### Entropy is injected at the edge
+
+`Math.random` and `Date.now` are both banned inside `src/game/` by the same lint rule. A new run's seed is therefore chosen by the caller — from user input if a seed was typed, otherwise from ambient entropy in the UI layer — and passed in as `LevelRequest.runSeed`. Same discipline as passing `now` into the pomodoro schedule.
 
 ### Game state stays JSON-serializable
 
