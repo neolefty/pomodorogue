@@ -21,6 +21,15 @@ if [ ! -d "$WEB_ROOT" ]; then
     exit 1
 fi
 
+# cron gets a minimal PATH that usually excludes pnpm's install dir, so this
+# fails as "command not found" long before it looks like a PATH problem. Checked
+# alongside WEB_ROOT rather than at the install step: both are "the host is set
+# up wrong" faults, and both should keep complaining until someone fixes them.
+if ! command -v pnpm >/dev/null 2>&1; then
+    log "ERROR: pnpm not on PATH (PATH=$PATH). See docs/deploy.md for the one-time setup."
+    exit 1
+fi
+
 git fetch origin "$BRANCH" --quiet
 
 LOCAL=$(git rev-parse HEAD)
@@ -38,10 +47,10 @@ log "Deploying ${LOCAL:0:7} -> ${REMOTE:0:7} (branch $BRANCH)"
 git reset --hard "origin/$BRANCH" --quiet
 
 log "Installing dependencies..."
-npm ci --no-audit --no-fund
+pnpm install --frozen-lockfile
 
 log "Building..."
-npm run build
+pnpm build
 
 # Build into place atomically enough that a request mid-deploy still gets a
 # coherent page: write the new files first, delete the stale ones after.

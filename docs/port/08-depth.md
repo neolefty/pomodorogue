@@ -10,7 +10,7 @@
 
 ## Stairs replace the shrine
 
-`make-shrine` in the generator places the shrine at the center of the furthest room by path length (`(last paths-to-rooms)`) — which is already exactly where a down-staircase belongs. Keep the placement logic verbatim, change the sprite (`shinto-shrine` → `down-arrow` or similar; add it to `SPRITE_NAMES` and re-run `npm run gen:sprites`) and swap the encounter fn.
+`make-shrine` in the generator places the shrine at the center of the furthest room by path length (`(last paths-to-rooms)`) — which is already exactly where a down-staircase belongs. Keep the placement logic verbatim, change the sprite (`shinto-shrine` → `down-arrow` or similar; add it to `SPRITE_NAMES` and re-run `pnpm gen:sprites`) and swap the encounter fn.
 
 ## What carries between levels
 

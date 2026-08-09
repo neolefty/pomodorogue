@@ -14,13 +14,14 @@ for the phase plan and current status board.
 
 ## Development
 
-Stack: Vite + React 19 + TypeScript, Vitest for tests.
+Stack: Vite + React 19 + TypeScript, Vitest for tests. Package manager is
+[pnpm](https://pnpm.io) — `corepack enable pnpm`, or see their install docs.
 
 ```
-npm install
-npm run dev        # dev server
-npm run typecheck
-npm test
+pnpm install
+pnpm dev           # dev server
+pnpm typecheck
+pnpm test
 ```
 
 ## Credits

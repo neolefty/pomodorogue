@@ -14,7 +14,7 @@
 | `src/game/grid.ts` | tile and path fns from `map.cljs` |
 | `src/game/entities.ts` | entity fns from `map.cljs` |
 
-Tests: `src/game/*.test.ts`. Run with `npm test`.
+Tests: `src/game/*.test.ts`. Run with `pnpm test`.
 
 ## Position keys — the main structural difference
 
