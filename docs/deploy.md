@@ -50,10 +50,13 @@ pomodorogue.com {
 	file_server
 
 	# Vite emits content-hashed asset filenames, so they are safe to cache
-	# permanently. index.html must not be, or a deploy never reaches anyone.
+	# permanently. The entry page must not be, or a deploy never reaches
+	# anyone. Caddy path matchers are exact without a wildcard, so the page
+	# has to be named both ways — visitors request `/`, not `/index.html`.
 	@immutable path /assets/*
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
-	header /index.html Cache-Control "no-cache"
+	@entry path / /index.html
+	header @entry Cache-Control "no-cache"
 }
 ```
 
