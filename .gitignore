@@ -9,3 +9,6 @@ dist/
 # This project uses pnpm; pnpm-lock.yaml is the lockfile. Ignored so a stray
 # `npm install` cannot commit a second, competing one.
 package-lock.json
+
+# Written by scripts/deploy.sh on the serving host: the commit last published.
+.deployed

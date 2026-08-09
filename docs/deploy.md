@@ -25,6 +25,38 @@ Deploy log: `~/deploy-pomodorogue.log` on the serving host.
 To deploy a branch other than `main`, set `DEPLOY_BRANCH` in the cron entry —
 the same override the other services on that host use.
 
+### Why there is a stamp file
+
+The idle check compares the remote commit against `.deployed` — an untracked
+file in the checkout holding the commit whose build actually reached the web
+root — rather than against `HEAD`.
+
+The distinction is not academic. The reset happens *before* the build, so a
+build that fails leaves `HEAD` already matching the remote while the web root
+still serves the old bundle. Keyed on `HEAD`, that state reads as "nothing to
+do" on every subsequent run, and the site stays stale indefinitely. Keyed on
+what was last published, the same failure simply retries five minutes later.
+
+The stamp is written after `rsync` and nowhere else, so every failure path
+leaves it stale on purpose.
+
+### The script updates itself one cycle late
+
+A cron run executes the version of `deploy.sh` that was checked out *before* it
+fetched. So a commit that changes the script is deployed by the previous
+version of the script.
+
+This is normally harmless and occasionally not: the npm→pnpm migration reset
+the checkout, deleting `package-lock.json`, and then the still-running old
+script invoked `npm ci`, which had nothing to install from. It failed, and
+because the reset had already happened, the following run picked up the new
+pnpm script and recovered on its own — which is precisely the self-healing the
+stamp file exists to guarantee.
+
+Worth knowing when a change to the deploy machinery itself lands: expect the
+first tick to fail and the second to succeed, and check the log rather than
+assuming the first failure is permanent.
+
 ## One-time host setup
 
 Assumes Node, pnpm, and Caddy are already present.
@@ -40,10 +72,33 @@ curl -fsSL https://get.pnpm.io/install.sh | sh -
 corepack enable pnpm
 ```
 
+Plain `corepack enable` writes its shims next to `node`, which on a
+distro-packaged Node means `/usr/bin` and therefore root. `--install-directory`
+keeps the whole thing in your home directory, which is how calcite is set up:
+
+```bash
+mkdir -p ~/.local/bin
+corepack enable --install-directory ~/.local/bin pnpm
+```
+
+The shim reads `packageManager` from `package.json` and provisions exactly that
+pnpm version, so the host tracks the repo rather than the other way around.
+
 `deploy.sh` runs from cron, which does **not** source `.bashrc` or `.profile` —
-so the `PATH` line the standalone installer appends there is invisible to it.
-Either give the cron entry an explicit `PATH=`, or symlink the binary somewhere
-already on it:
+so neither `~/.local/bin` nor the `PATH` line the standalone installer appends
+is visible to it. Give the cron entry an explicit `PATH`, as calcite does:
+
+```
+*/5 * * * * PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" COREPACK_ENABLE_DOWNLOAD_PROMPT=0 $HOME/source/pomodorogue/scripts/deploy.sh >> $HOME/deploy-pomodorogue.log 2>&1
+```
+
+Inline rather than a bare `PATH=` line, because a `PATH=` assignment in a
+crontab applies to every job below it — fine today, a trap the moment someone
+reorders the file. `COREPACK_ENABLE_DOWNLOAD_PROMPT=0` matters because corepack
+otherwise waits for a confirmation that cron can never supply, the first time a
+`packageManager` bump asks it to fetch a new pnpm.
+
+Alternatively, symlink the binary somewhere already on cron's `PATH`:
 
 ```bash
 sudo ln -s "$(command -v pnpm)" /usr/local/bin/pnpm
