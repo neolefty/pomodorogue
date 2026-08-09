@@ -1,6 +1,6 @@
 # Phase 1 — Scaffold
 
-**Outcome:** `npm run dev` serves a blank page from a Vite + React + TypeScript project. `npm run typecheck` and `npm test` both pass with nothing to check.
+**Outcome:** `pnpm dev` serves a blank page from a Vite + React + TypeScript project. `pnpm typecheck` and `pnpm test` both pass with nothing to check.
 
 **Status:** done.
 

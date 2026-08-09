@@ -15,11 +15,12 @@ These are working documents for the port, not long-term reference. Delete `docs/
 | Working repo | `~/source/rogule/pomodorogue` |
 | Reference source (ClojureScript) | `~/source/rogule/original` — read-only, never edit |
 | Stack | Vite + React 19 + TypeScript, Vitest for tests |
-| Dev server | `npm run dev` |
-| Typecheck | `npm run typecheck` |
-| Tests | `npm test` |
-| Lint | `npm run lint` |
-| Regenerate sprite index | `npm i -D twemoji-emojis && npm run gen:sprites && npm uninstall -D twemoji-emojis` — see [02-sprites.md](docs/port/02-sprites.md) |
+| Package manager | **pnpm** — `pnpm-lock.yaml` is the lockfile; there is no `package-lock.json` |
+| Dev server | `pnpm dev` |
+| Typecheck | `pnpm typecheck` |
+| Tests | `pnpm test` |
+| Lint | `pnpm lint` |
+| Regenerate sprite index | `pnpm add -D twemoji-emojis && pnpm gen:sprites && pnpm remove twemoji-emojis` — see [02-sprites.md](docs/port/02-sprites.md) |
 | License | **AGPL-3.0** — inherited from the original, not optional. See `NOTICE.md`. |
 | Attribution | Original game by Chris McCormick. `README.md` and `NOTICE.md` carry it; phase 6 must also put a source link in the UI (AGPL §13). |
 

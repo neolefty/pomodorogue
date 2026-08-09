@@ -1,6 +1,6 @@
 # Deploying
 
-Pomodorogue is a **static client with no server**. `npm run build` produces a
+Pomodorogue is a **static client with no server**. `pnpm build` produces a
 `dist/` of HTML, one JS bundle, and the sprite SVGs; deploying is copying that
 directory somewhere a web server can read it. There is no backend, no database,
 and no configuration — phase 9's optional content service
@@ -13,8 +13,9 @@ Live at <https://pomodorogue.com>, served by Caddy from `calcite`.
 
 [`scripts/deploy.sh`](../scripts/deploy.sh) is a pull-based GitOps loop, run by
 cron every five minutes on the serving host. It compares `HEAD` to
-`origin/main`, and on a difference resets to the remote, runs `npm ci && npm run
-build`, and rsyncs `dist/` into the web root. Unchanged means it exits silently.
+`origin/main`, and on a difference resets to the remote, runs `pnpm install
+--frozen-lockfile && pnpm build`, and rsyncs `dist/` into the web root.
+Unchanged means it exits silently.
 
 Nothing pushes to the server — no inbound SSH, no CI secrets, no webhook. Merge
 to `main` and the site follows within five minutes.
@@ -26,7 +27,30 @@ the same override the other services on that host use.
 
 ## One-time host setup
 
-Assumes Node and Caddy are already present.
+Assumes Node, pnpm, and Caddy are already present.
+
+pnpm is not optional and not interchangeable with npm here — there is no
+`package-lock.json` in the repo, so `npm ci` has nothing to install from. If the
+host only has npm:
+
+```bash
+# Either install pnpm standalone...
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+# ...or, if the host's Node ships corepack (Node <25):
+corepack enable pnpm
+```
+
+`deploy.sh` runs from cron, which does **not** source `.bashrc` or `.profile` —
+so the `PATH` line the standalone installer appends there is invisible to it.
+Either give the cron entry an explicit `PATH=`, or symlink the binary somewhere
+already on it:
+
+```bash
+sudo ln -s "$(command -v pnpm)" /usr/local/bin/pnpm
+```
+
+The script checks for pnpm up front and logs the effective `PATH` when it is
+missing, so this failure names itself in `~/deploy-pomodorogue.log`.
 
 ```bash
 git clone git@github.com:neolefty/pomodorogue.git ~/source/pomodorogue

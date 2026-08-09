@@ -9,24 +9,34 @@
 | | |
 |---|---|
 | Codegen script | `scripts/gen-sprites.ts` |
-| Run it | `npm run gen:sprites` |
+| Run it | `pnpm gen:sprites` |
 | Generated index (committed) | `src/game/sprites.ts` |
 | Generated SVGs (committed) | `public/sprites/*.svg` |
 | Source data | `node_modules/emoji.json` (names → codepoints), `node_modules/twemoji-emojis/vendor/svg/` (the artwork) |
 
-Both outputs are **committed to the repo** so a fresh clone runs without the codegen step. Re-run `npm run gen:sprites` only when adding a new sprite to `SPRITE_NAMES`.
+Both outputs are **committed to the repo** so a fresh clone runs without the codegen step. Re-run `pnpm gen:sprites` only when adding a new sprite to `SPRITE_NAMES`.
 
 ### `twemoji-emojis` is not installed by default
 
-It is *not* in `devDependencies`. Its dependency chain (`download` → `decompress`, `got`) accounts for six advisories including two criticals, and since the generated output is committed it is needed only when the sprite list changes. Leaving it out keeps `npm audit` at zero on a public repo.
+It is *not* in `devDependencies`. Its dependency chain (`download` → `decompress`, `got`) accounts for six advisories including two criticals, and since the generated output is committed it is needed only when the sprite list changes. Leaving it out keeps `pnpm audit` at zero on a public repo.
 
 To add a sprite:
 
 ```sh
-npm i -D twemoji-emojis     # temporarily
-npm run gen:sprites
-npm uninstall -D twemoji-emojis
+pnpm add -D twemoji-emojis     # temporarily
+pnpm gen:sprites
+pnpm remove twemoji-emojis
 ```
+
+(`pnpm remove` needs no `-D`; it finds the package in whichever dependency block
+holds it.)
+
+`twemoji-emojis` ships no artwork — its `postinstall` downloads the SVGs into
+`vendor/`. pnpm does not run dependency build scripts by default, so it is
+listed in `pnpm.onlyBuiltDependencies` in `package.json` even though it is never
+a normal dependency. Without that entry the install "succeeds", `vendor/` is
+never created, and `gen:sprites` fails claiming the package is missing — when it
+is in fact installed and empty. Do not drop it from that list.
 
 The script checks for it and prints exactly this instruction if it is missing, so a future session hitting the error does not have to work it out.
 
