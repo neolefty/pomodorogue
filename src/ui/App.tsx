@@ -13,11 +13,12 @@ import { useCallback, useRef, useState } from 'react'
 import { builtinContent } from '../game/content/builtin.ts'
 import type { Dir } from '../game/engine/index.ts'
 import { expireAnimation, takeTurn } from '../game/engine/index.ts'
+import { getPlayer } from '../game/entities.ts'
 import { makeLevel } from '../game/generator/index.ts'
 import type { Rng } from '../game/rng.ts'
 import { makeRng } from '../game/rng.ts'
 import type { EntityId, GameState, Statistics } from '../game/types.ts'
-import { emptyStatistics, PLAYER_ID } from '../game/types.ts'
+import { emptyStatistics } from '../game/types.ts'
 import { ArrowButtons } from './ArrowButtons.tsx'
 import { Board } from './Board.tsx'
 import { HealthBars } from './HealthBars.tsx'
@@ -69,7 +70,7 @@ function recordOutcome(stats: Statistics, state: GameState): Statistics {
 }
 
 export function App() {
-  const [level, setLevel] = useState<Level>(newLevel)
+  const [level, setLevelState] = useState<Level>(newLevel)
   const [statistics, setStatistics] = useState<Statistics>(emptyStatistics)
   const [helpOpen, setHelpOpen] = useState(false)
 
@@ -79,47 +80,62 @@ export function App() {
   // synchronization with anything outside React.
   const scored = useRef(false)
 
+  // The level is read through a ref and written through `setLevel`, never
+  // computed inside a setState updater. `takeTurn` draws from the mutable rng,
+  // so an updater that calls it is impure: StrictMode's dev double-invoke would
+  // advance the stream twice per turn and could record an outcome from a roll
+  // React never commits. Handlers fire once per event, so they read the ref,
+  // do the impure work, and hand React a finished value.
+  const levelRef = useRef(level)
+  const setLevel = useCallback((next: Level) => {
+    levelRef.current = next
+    setLevelState(next)
+  }, [])
+
   const move = useCallback(
     (dir: Dir | null) => {
-      // The help overlay covers the board, so a keypress under it is meant for
-      // the overlay. The original left the board live behind its modal.
-      if (helpOpen) return
-      setLevel((current) => {
-        const next = takeTurn(current.state, dir, current.rng)
-        if (next === current.state) return current
-        if (next.outcome && !scored.current) {
-          scored.current = true
-          setStatistics((stats) => recordOutcome(stats, next))
-        }
-        return { ...current, state: next }
-      })
+      const current = levelRef.current
+      const next = takeTurn(current.state, dir, current.rng)
+      if (next === current.state) return
+      if (next.outcome && !scored.current) {
+        scored.current = true
+        setStatistics((stats) => recordOutcome(stats, next))
+      }
+      setLevel({ ...current, state: next })
     },
-    [helpOpen],
+    [setLevel],
   )
 
   const playAgain = useCallback(() => {
     scored.current = false
+    // Help can be toggled on from the tombstone, where nothing renders it —
+    // left set, it would cover the new level's first frame.
+    setHelpOpen(false)
     setLevel(newLevel())
-  }, [])
+  }, [setLevel])
 
   const toggleHelp = useCallback(() => setHelpOpen((open) => !open), [])
   const closeHelp = useCallback(() => setHelpOpen(false), [])
 
-  useKeyboard({ onMove: move, onToggleHelp: toggleHelp, onCloseHelp: closeHelp })
+  useKeyboard({ helpOpen, onMove: move, onToggleHelp: toggleHelp, onCloseHelp: closeHelp })
 
   // Spent smoke puffs and collision markers clear themselves as their
   // animations end — the engine's second entry point, so that this never has to
   // reach for Immer. See "Animations" in docs/port/06-ui.md.
-  const clearEffect = useCallback((id: EntityId) => {
-    setLevel((current) => ({ ...current, state: expireAnimation(current.state, id) }))
-  }, [])
+  const clearEffect = useCallback(
+    (id: EntityId) => {
+      const current = levelRef.current
+      setLevel({ ...current, state: expireAnimation(current.state, id) })
+    },
+    [setLevel],
+  )
 
   const { state } = level
   if (state.outcome) {
     return <Tombstone state={state} statistics={statistics} onPlayAgain={playAgain} />
   }
 
-  const player = state.entities[PLAYER_ID]
+  const player = getPlayer(state)
 
   return (
     <span id="game">

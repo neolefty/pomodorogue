@@ -7,7 +7,7 @@
  * visibility pass. Re-rendering all ~324 cells every keypress is fine and is
  * what the original does; do not add virtualization.
  */
-import { entitiesAt, entitiesByPos } from '../game/entities.ts'
+import { entitiesAt, entitiesByPos, getPlayer } from '../game/entities.ts'
 import { tileAt } from '../game/grid.ts'
 import { distanceSq, posKey } from '../game/pos.ts'
 import { SPRITES } from '../game/sprites.ts'
@@ -95,29 +95,31 @@ function Cell({
     <span className="grid" style={{ opacity }}>
       {floor && <Tile sprite={floor.sprite} title={floor.title} />}
       {/*
-        Entities render even in the dark. They are invisible at opacity 0, but
-        their animations still run and still fire `animationend` — which is what
-        removes spent smoke puffs and collision markers. Skipping them here
-        would leak every effect that expired off-screen.
+        Nothing renders in the dark. Opacity 0 hides the pixels but not the
+        `title`/`alt` text, so a hovered dark cell would name the monster the
+        fog is meant to hide. Effects that need to finish their animations out
+        of sight do it in the Board's hidden pen below.
 
         `entitiesAt` returns them in layer order with corpses below the living,
         so items sit on top of the body they were dropped by. Don't re-sort.
       */}
-      {entitiesAt(index, posKey(x, y)).map((entity) => (
-        // `frame` in the key is the animation replay: a repeated bump bumps the
-        // frame, the key changes, the element remounts and the CSS restarts.
-        <CellEntity
-          key={`${entity.id}:${entity.animation?.frame ?? 0}`}
-          entity={entity}
-          onAnimationEnd={onAnimationEnd}
-        />
-      ))}
+      {opacity > 0 &&
+        entitiesAt(index, posKey(x, y)).map((entity) => (
+          // `frame` in the key is the animation replay: a repeated bump bumps
+          // the frame, the key changes, the element remounts and the CSS
+          // restarts.
+          <CellEntity
+            key={`${entity.id}:${entity.animation?.frame ?? 0}`}
+            entity={entity}
+            onAnimationEnd={onAnimationEnd}
+          />
+        ))}
     </span>
   )
 }
 
 export function Board({ state, onAnimationEnd }: BoardProps) {
-  const player = state.entities[PLAYER_ID]
+  const player = getPlayer(state)
   if (!player) return null
 
   const index = entitiesByPos(state.entities)
@@ -152,5 +154,31 @@ export function Board({ state, onAnimationEnd }: BoardProps) {
     )
   }
 
-  return <div>{rows}</div>
+  // The hidden pen: `destroy`-disposal effects outside the lit ring — in a
+  // dark cell or off the window entirely — still need their animations to run
+  // to completion, because `animationend` is what removes them from state.
+  // Dark cells render nothing (their `title`/`alt` leaked through the fog), so
+  // the pending effects finish here instead. `visibility: hidden` keeps them
+  // out of view, hover, and the accessibility tree, but the animations still
+  // run and still fire; `display: none` would stall them forever.
+  const pending = Object.values(state.entities).filter(
+    (entity) =>
+      entity.animation?.disposal === 'destroy' &&
+      distanceSq(player.pos, entity.pos) > VISIBLE_DIST_SQ,
+  )
+
+  return (
+    <div>
+      {rows}
+      <div style={{ visibility: 'hidden', position: 'absolute', top: 0, left: 0 }}>
+        {pending.map((entity) => (
+          <CellEntity
+            key={`${entity.id}:${entity.animation?.frame ?? 0}`}
+            entity={entity}
+            onAnimationEnd={onAnimationEnd}
+          />
+        ))}
+      </div>
+    </div>
+  )
 }

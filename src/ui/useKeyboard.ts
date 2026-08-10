@@ -15,7 +15,11 @@
 import { useEffect } from 'react'
 import type { Dir } from '../game/engine/index.ts'
 
-/** Arrow keys and vim keys, as in the original's `key-dir-map`. */
+/**
+ * Arrow keys and vim keys, as in the original's `key-dir-map`. Both cases of
+ * the vim keys: CapsLock delivers `H` with no modifier flag set, and the
+ * original's keycode table (72/74/75/76) never saw the difference.
+ */
 const KEY_DIRS: Record<string, Dir> = {
   ArrowLeft: 'left',
   ArrowRight: 'right',
@@ -25,16 +29,25 @@ const KEY_DIRS: Record<string, Dir> = {
   l: 'right',
   k: 'up',
   j: 'down',
+  H: 'left',
+  L: 'right',
+  K: 'up',
+  J: 'down',
 }
 
 interface KeyboardActions {
+  /**
+   * While the help overlay is open it owns the keyboard: `?` and Escape still
+   * work, but movement keys go back to the browser so arrows can scroll it.
+   */
+  helpOpen: boolean
   /** `null` rests — the `.` key, `key-dir-map`'s 190. */
   onMove: (dir: Dir | null) => void
   onToggleHelp: () => void
   onCloseHelp: () => void
 }
 
-export function useKeyboard({ onMove, onToggleHelp, onCloseHelp }: KeyboardActions): void {
+export function useKeyboard({ helpOpen, onMove, onToggleHelp, onCloseHelp }: KeyboardActions): void {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       // A modifier means the key belongs to the browser — ⌘R is a reload, not a
@@ -45,6 +58,8 @@ export function useKeyboard({ onMove, onToggleHelp, onCloseHelp }: KeyboardActio
         onToggleHelp()
       } else if (event.key === 'Escape') {
         onCloseHelp()
+      } else if (helpOpen) {
+        return
       } else if (event.key === '.') {
         onMove(null)
       } else {
@@ -59,5 +74,5 @@ export function useKeyboard({ onMove, onToggleHelp, onCloseHelp }: KeyboardActio
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onMove, onToggleHelp, onCloseHelp])
+  }, [helpOpen, onMove, onToggleHelp, onCloseHelp])
 }

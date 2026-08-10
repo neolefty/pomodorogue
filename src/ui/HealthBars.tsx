@@ -6,9 +6,9 @@
  * turn. `state.combatants` is cleared at the top of each turn, so the bars are
  * a view of *this* exchange, not a running tally.
  */
+import { getPlayer } from '../game/entities.ts'
 import { SPRITES } from '../game/sprites.ts'
 import type { Entity, GameState } from '../game/types.ts'
-import { PLAYER_ID } from '../game/types.ts'
 import { Tile } from './Tile.tsx'
 
 /**
@@ -43,12 +43,13 @@ function HealthBar({ entity }: { entity: Entity }) {
 }
 
 export function HealthBars({ state }: { state: GameState }) {
-  const player = state.entities[PLAYER_ID]
+  const player = getPlayer(state)
   if (!player) return null
 
   return (
     <div id="health-bars">
-      <HealthBar entity={player} />
+      {/* Keyed on HP like the combatants' bars below, so damage replays `pop`. */}
+      <HealthBar key={`player:${player.stats?.hp.cur ?? 0}`} entity={player} />
       {Object.keys(state.combatants).map((id) => {
         // Per phase 5: a combatant id can outlive the entity it names — the
         // loser of the exchange is removed, id and all — so a miss here is

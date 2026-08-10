@@ -41,6 +41,11 @@ function ShareButton({ text }: { text: string }) {
   }, [label])
 
   const copy = () => {
+    // On an insecure origin the API is absent, not rejecting — same message.
+    if (!navigator.clipboard) {
+      setLabel('Copy failed')
+      return
+    }
     navigator.clipboard.writeText(text).then(
       () => setLabel('Copied!'),
       () => setLabel('Copy failed'),

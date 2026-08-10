@@ -12,11 +12,10 @@
  * Statistics are run-scoped now rather than living in game state, so this takes
  * them as a second argument (`ui.cljs:193` read them off the state).
  */
-import { countEntities } from '../game/entities.ts'
+import { countEntities, getPlayer } from '../game/entities.ts'
 import type { Sprite } from '../game/sprites.ts'
 import { SPRITES } from '../game/sprites.ts'
 import type { Entity, GameState, Statistics } from '../game/types.ts'
-import { PLAYER_ID } from '../game/types.ts'
 import { Tile } from './Tile.tsx'
 
 /** How a share string turns its three kinds of token into the target type. */
@@ -25,6 +24,13 @@ export interface ShareRender<T> {
   text: (text: string) => T
   /** Line separator: `"\n"` for the clipboard, a `<br/>` for the screen. */
   br: T
+  /**
+   * A link back to the game on the last line, or `null` on the screen, where
+   * the reader is already at the game. The original did the same, keyed off
+   * the separator (`ui.cljs:226`); its URL was rogule.com, ours is the repo —
+   * this port has no deployed home yet.
+   */
+  url: string | null
 }
 
 /**
@@ -51,7 +57,7 @@ export function makeShareString<T>(
   state: GameState,
   statistics: Statistics,
 ): T[] {
-  const player = state.entities[PLAYER_ID]
+  const player = getPlayer(state)
   const stats = player?.stats
   const inventory = player?.inventory ?? []
   const won = state.outcome === 'descended'
@@ -100,13 +106,20 @@ export function makeShareString<T>(
   for (const bar of bars) out.push(...bar)
   if (bars.length > 0) out.push(render.br)
 
+  if (render.url !== null) out.push(render.text(render.url))
+
   return out
 }
 
 /** Renders to plain text, for the clipboard. */
 export const shareText = (state: GameState, statistics: Statistics): string =>
   makeShareString<string>(
-    { sprite: (s) => s.char, text: (t) => t, br: '\n' },
+    {
+      sprite: (s) => s.char,
+      text: (t) => t,
+      br: '\n',
+      url: 'https://github.com/neolefty/pomodorogue',
+    },
     state,
     statistics,
   ).join('')
@@ -118,6 +131,7 @@ export const shareTiles = (state: GameState, statistics: Statistics) =>
       sprite: (s) => <Tile sprite={s} />,
       text: (t) => <>{t}</>,
       br: <br />,
+      url: null,
     },
     state,
     statistics,

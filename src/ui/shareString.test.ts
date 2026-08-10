@@ -87,6 +87,13 @@ describe('share string', () => {
     expect(text).toContain('🟩🟩🟩⬜⬜')
   })
 
+  // The clipboard target only: the on-screen version renders where the reader
+  // already is. The original did the same with rogule.com (`ui.cljs:226`).
+  it('ends the clipboard text with a link back to the game', () => {
+    const text = shareText(makeState(), stats())
+    expect(text.split('\n').at(-1)).toBe('https://github.com/neolefty/pomodorogue')
+  })
+
   it('lists kills most recent first', () => {
     const slayer = {
       [PLAYER_ID]: player({
