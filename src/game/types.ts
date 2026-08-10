@@ -116,8 +116,6 @@ export interface Entity {
   drop?: Entity | null
   /** A transient effect spawned alongside `drop`, e.g. the smoke puff. */
   juice?: Entity | null
-  /** Sprites for the pickup modal, when they differ from the entity's own. */
-  modalSprites?: Sprite[]
 
   dead?: boolean
   /** Whether this entity's most recent move attempt consumed a turn. */
@@ -175,8 +173,11 @@ export interface GameMap {
  * depend on how the run went, which is exactly what the two-pass split exists to
  * prevent. See "Seeds control the world, not the story" in PLAN.md.
  *
- * A struct rather than two loose parameters mostly so call sites read well and
- * `levelSeed`/`combatRng` can share one argument.
+ * A struct rather than two loose parameters mostly so call sites read well.
+ *
+ * Note combat randomness takes the opposite path: it is *not* derived from
+ * this request. The engine's `Rng` is entropy-seeded at the edge — only
+ * generation repeats. See "Seeds control the world, not the story" in PLAN.md.
  */
 export interface LevelRequest {
   /** Chosen once per run: user-supplied, or random entropy from the edge. */
@@ -187,17 +188,6 @@ export interface LevelRequest {
 // ***** game state ***** //
 
 export type Outcome = 'died' | 'descended'
-
-export interface Message {
-  text: string
-  /** Turns remaining before the message clears. */
-  expires: number
-}
-
-export interface EventModal {
-  id: string
-  sprites: Sprite[]
-}
 
 export interface Statistics {
   runs: number
@@ -249,8 +239,6 @@ export interface GameState {
    * duplicate health bar.
    */
   combatants: Record<EntityId, true>
-  message: Message | null
-  eventModal: EventModal | null
   outcome: Outcome | null
   /** How many of each collectible the level contains, for the completion bars. */
   counts: Record<string, number>

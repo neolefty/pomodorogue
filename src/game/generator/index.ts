@@ -62,8 +62,6 @@ export function makeBaseLevel(request: LevelRequest, content: ContentProvider): 
     nextEntityId,
     moves: 0,
     combatants: {},
-    message: null,
-    eventModal: null,
     outcome: null,
     counts,
     log: [{ type: 'start', seed, depth: request.depth }],

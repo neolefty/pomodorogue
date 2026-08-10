@@ -78,7 +78,7 @@ Do not add complexity in the name of determinism beyond what those two justify.
 A future "play seed 12345" feature is allowed for, not built. What such a seed would and would not fix:
 
 - **Fixed by the seed:** the layout, item placement, and monster placement of *every* level in the run — not just the first. Level seeds derive as `hashSeed(runSeed, depth)`, so depth 7 is as determined as depth 1.
-- **Not fixed by the seed:** anything the player does. Combat draws from a separate stream (`combatRng`) precisely so that consuming rolls at a player-determined rate cannot shift what the generator produces.
+- **Not fixed by the seed:** anything the player does. Combat and monster-AI rolls come from an entropy-seeded `Rng` created at the edge and injected into the engine — not merely a *separate* stream from generation's, but deliberately not derived from the seed at all. Independence also means consuming rolls at a player-determined rate cannot shift what the generator produces.
 
 So two players on the same seed walk the same dungeon and have different runs. That is the right split, and it is the reason the two streams are kept apart.
 
@@ -93,7 +93,7 @@ Keeping the passes apart preserves a crisper answer to "what does a seed control
 
 - **The seed alone fixes the base level at every depth.** Two players on seed 12345 walk the same rooms and meet the same base monsters at depth 7, whatever they each did on the way down.
 - **History controls only what is layered on top**, and the overlay is where the run's story shows up.
-- **Your own run stays reconstructible from seed plus inputs**, for everything internal to it — seed the overlay stream from `hashSeed(runSeed, depth, historyDigest)` rather than from ambient entropy and this comes for free. Genuinely external inputs (bones files from other runs, a server's AI content) are not reproducible, and that is fine; they are inputs, not randomness.
+- **Runs are not reconstructible, and that is deliberate** (decided 2026-08-09). Combat randomness being entropy-seeded means no record short of a full input-and-roll log could replay a run — and nothing wants to: there is no leaderboard, no shared run, no bug-replay pipeline reading one. The overlay stream, when it exists, is still seeded from `hashSeed(runSeed, depth, historyDigest)` — overlays are *world content*, and world content stays seed-derived; only the play itself is entropy. Genuinely external inputs (bones files from other runs, a server's AI content) are inputs, not randomness, and are not expected to reproduce.
 
 Three invariants make the split hold. Write them into the overlay when it is built:
 
@@ -106,6 +106,8 @@ Phase 4 builds the base pass only. The overlay is a named seam with no implement
 ### Entropy is injected at the edge
 
 `Math.random` and `Date.now` are both banned inside `src/game/` by the same lint rule. A new run's seed is therefore chosen by the caller — from user input if a seed was typed, otherwise from ambient entropy in the UI layer — and passed in as `LevelRequest.runSeed`. Same discipline as passing `now` into the pomodoro schedule.
+
+The engine's combat/AI stream follows the same pattern with the opposite intent: the UI creates it from ambient entropy at level start (`makeRng(randomSeed)`) and passes it into `takeTurn`. It is *not* derived from `runSeed` — only generation is repeatable, per "Seeds control the world, not the story" above. Tests inject a fixed-seed `Rng` through the same parameter, which is all the determinism combat ever needs.
 
 ### Game state stays JSON-serializable
 

@@ -29,39 +29,41 @@ Three separate concerns, persisted separately so a corrupt one doesn't take down
 
 ```ts
 type Schedule = { nextPlayableAt: number }        // epoch ms
-type Run = { runSeed: number; depth: number; carry: PlayerCarry; statistics: Statistics }
+type Run = { runSeed: number; depth: number; carry: PlayerCarry | null; statistics: Statistics }
 type Level = GameState | null                     // the in-progress level, if any
 ```
 
+`carry` is always `null` until phase 8, which defines `PlayerCarry`
+([08-depth.md](08-depth.md)) — it is listed here so the persisted shape doesn't
+change underneath phase 8.
+
 `GameState` is already JSON-round-trippable (enforced by a test from phase 3), so `Level` persists directly. That is what lets an in-progress level survive a reload — which matters, because a 5-minute break is exactly long enough for someone to accidentally close the tab.
 
-## What does not persist: the combat stream
+## The combat stream does not persist
 
-**Decision: the combat RNG rewinds on reload. Accepted, not fixed.**
+**Decision (final, 2026-08-09): combat randomness is entropy-seeded, so there
+is no stream position to save.** Rehydrating a mid-level game creates a fresh
+`Rng` from fresh entropy, exactly as starting a level does.
 
-An `Rng`'s stream position is mutable state, so it cannot live in `GameState`
-without breaking the JSON round-trip. Rehydrating therefore restarts
-`combatRng(request)` from the top of its stream: reload mid-fight and your
-upcoming rolls are the ones you already had, not the ones you were going to get.
+This settled in two steps. The stream was originally seed-derived
+(`combatRng(request)`), which forced a choice on reload: accept that the stream
+rewinds, or persist a draw counter and fast-forward. Both were designed before
+the real question got asked — *what does seed-derived combat buy?* — and the
+answer is nothing this game uses. Deterministic tests come from injecting a
+fixed-seed `Rng` (see 05), the "play seed 12345" feature was always
+world-only, and "run reconstructible from seed plus inputs" had no consumer.
+PLAN.md's own razor — no complexity in the name of determinism beyond what the
+generator test and the seed feature justify — cuts it.
 
-Two consequences, both accepted:
+One consequence: reloading mid-fight rerolls your upcoming luck with fresh
+entropy. Mildly save-scummable, same class as the walk-away exploit under "The
+level cap" below, accepted for the same reason — there is no leaderboard and
+nobody to cheat but yourself.
 
-- The "run reconstructible from seed plus inputs" future option in PLAN.md
-  silently stops holding across a reload. That option is explicitly a *weaker*
-  property that nothing depends on, and PLAN.md is clear that reproducibility
-  here is a tool for testing the generator, not a promise to the player.
-- It is save-scummable: a player who loses a fight can reload and re-roll it.
-  Same shape as the walk-away exploit under "The level cap" below, and accepted
-  for the same reason — there is no leaderboard and nobody to cheat but yourself.
-
-**The escape hatch, if this ever matters:** keep a `combatRolls` counter in
-`GameState`, increment it on every draw, and fast-forward the stream that many
-steps on rehydrate. Note the real cost is not the fast-forward but the
-bookkeeping — every combat draw has to go through something that can bump the
-counter, which couples `combat.ts` to state threading it otherwise avoids. That
-is why this is not being built now, and it is why the decision belongs here
-rather than in phase 5: **if you want the counter, it has to go in while combat
-is being written, not afterwards.**
+Reversal, if ever wanted, is a caller-side change only: the engine takes an
+`Rng` parameter and does not know how it was seeded, so deriving it from the
+seed again (plus persisting a draw count) touches level start and rehydrate,
+nothing else.
 
 ## The gate
 

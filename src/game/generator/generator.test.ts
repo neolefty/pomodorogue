@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { builtinContent } from '../content/builtin.ts'
 import { canPassTile, findPath } from '../grid.ts'
 import { keyOf } from '../pos.ts'
-import { combatRng } from '../rng.ts'
+import { makeRng } from '../rng.ts'
 import type { Entity, GameState, LevelRequest } from '../types.ts'
 import { PLAYER_ID } from '../types.ts'
 import { ENTITY_COUNT, MONSTER_COUNT, makeBaseLevel, makeLevel } from './index.ts'
@@ -32,9 +32,11 @@ describe('makeBaseLevel determinism', () => {
     expect(level({ runSeed: 999, depth: 1 }).map.floorTiles).not.toEqual(level().map.floorTiles)
   })
 
-  it('is unaffected by consumption of the combat stream', () => {
+  it('is unaffected by draws from an unrelated stream', () => {
+    // Guards the digger's use of the *global* rot-js instance: an Rng made for
+    // the engine (combat, monster AI) must never share state with generation.
     const before = makeBaseLevel(request, builtinContent)
-    const dice = combatRng(request)
+    const dice = makeRng('engine-entropy-stand-in', 42)
     for (let i = 0; i < 500; i++) dice.next()
     expect(makeBaseLevel(request, builtinContent)).toEqual(before)
   })

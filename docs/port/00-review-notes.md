@@ -1,5 +1,10 @@
 # Review notes — port through phase 3
 
+> **Second pass (2026-08-09, after phase 4):** the phase 5–8 docs were
+> re-checked against `src/game/` as built. Corrections were folded directly
+> into `05`–`08`; the decisions are recorded at the bottom of this file under
+> "Second pass". The first-pass notes below are unchanged and fully disposed.
+
 Findings from a review of phases 1–3 against `~/source/rogule/original`
 (2026-08-04). **Verdict: the foundation is sound and no fidelity errors were
 found** — `rng`/`pos`/`grid`/`entities`/`sprites` were checked line-by-line
@@ -141,3 +146,52 @@ than usual:
 `04-generator.md`. Keep it write-first: it is the one test that catches a stray
 ambient dependency anywhere in the generator, and it only works because entity
 ids come from the counter rather than random UUIDs.
+
+---
+
+# Second pass — phases 5–8 docs vs. the landed code (2026-08-09)
+
+After phase 4, the upcoming-phase docs were re-checked against `src/game/` as
+built. All corrections are folded directly into `05`–`08`; this section records
+only the decisions, so future sessions know they were deliberate. Tree green at
+56 tests before and after the pass.
+
+1. **`takeTurn` takes the combat `Rng` as a parameter** —
+   `takeTurn(state, dir, rng)`. `GameState` holds only the derived level seed,
+   `runSeed` is not in it, and `hashSeed` is not invertible, so the engine
+   cannot construct the stream itself; the caller owns it. `EncounterFn` and
+   `UpdateFn` gain the same final parameter. (05)
+2. **Combat randomness is entropy-seeded; `combatRng` is deleted.** The
+   engine's `Rng` is created from fresh entropy at the edge and injected —
+   nothing about it persists, so the whole rewind-vs-draw-counter question
+   dissolves. (This moved twice in one day: rewind-accepted → persist a draw
+   count → unseeded. The final step came from asking what seed-derived combat
+   buys: deterministic tests come from injection, the seed feature is
+   world-only, and "reconstructible from seed + inputs" had no consumer —
+   PLAN.md's no-determinism-complexity razor cuts it. Injection, decision 1,
+   is what makes this a caller-side choice, freely reversible later.)
+   (PLAN.md, 03, 04, 05, 07, `rng.ts`)
+3. **`message`, `eventModal`, and `Entity.modalSprites` are dropped** — both
+   features are commented-out dead code in the original (`ui.cljs:165`,
+   `engine.cljs:209,224`), and `state.log` records the same events. Applied in
+   code during this pass (nothing wrote the fields yet — same free-type-change
+   rationale as first-pass item 2). (05, 06, `types.ts`, `content/`,
+   `generator/`)
+4. **Phase 8's carry is a post-pass** — `applyCarry` over a finished
+   `makeBaseLevel` output via the existing `makeLevel` seam, never a
+   `placePlayer` parameter. Carry is run history, and history must not reach
+   the base pass; the earlier draft of 08 would have broken the plan's own
+   invariant. (08)
+5. **Statistics updates move out of the engine** — `Statistics` is run-scoped,
+   so `finishLevel`/death set `outcome` only and the run layer (phase 7) reacts
+   to it; phase 6's share string takes statistics as an argument, with a
+   transient in-memory record until phase 7 persists one. (05, 06)
+6. **Drift fixed throughout**: registry unions are consumed *from* `types.ts`,
+   not derived via `keyof typeof` (that sketch now creates an import cycle);
+   `gameLog` → `state.log`, per-level by construction; animation tuple →
+   `Animation` object; `PlayerCarry.inventory` is `Entity[]` (there is no
+   `Item` type); `maxDepth` already exists on `Statistics`; Clojure names →
+   ported names (`placeShrine`, `placePlayer`); plus fidelity notes folded into
+   05 (kill-summary before skull swap, combatant recording rules, `moved`
+   semantics, `delete` not `undefined`, corpse `drop` cleared as a deliberate
+   divergence, Immer-draft rules for `entitiesByPos`).

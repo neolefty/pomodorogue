@@ -58,8 +58,6 @@ function sampleState(): GameState {
     nextEntityId: 4,
     moves: 17,
     combatants: { e2: true },
-    message: { text: 'the rat hit you', expires: 3 },
-    eventModal: null,
     outcome: null,
     counts: { mushroom: 3, chestnut: 1 },
     log: [{ type: 'start', seed: 12345, depth: 1 }],

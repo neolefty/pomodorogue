@@ -116,7 +116,7 @@ Do not reintroduce `crypto.randomUUID` here or in the engine — the same counte
 
 - Same `LevelRequest` → deep-equal `GameState`. Write it first. It is the cheapest broad regression test the generator will have — any accidental dependency on ambient state fails it — and it only passes because entity ids come from the counter above. **Bind it to `makeBaseLevel`, not to `makeLevel`**, so that it keeps testing "two scalars in, same level out" after an overlay exists.
 - Different depth → different map. Same depth, different `runSeed` → different map.
-- The combat stream does not perturb generation: draw a few hundred rolls from `combatRng(request)` and confirm `makeLevel(request)` is unchanged.
+- Generation is unaffected by draws from an unrelated `Rng` (a stand-in for the engine's entropy-seeded stream) — guards the digger's use of the global rot-js instance.
 - Player start position is walkable and the shrine is reachable from it. The original never checks this; it happens to hold because the shrine is placed at the end of a computed path. Assert it anyway — depth scaling in phase 8 could break it. Write it against the *composed* `makeLevel`, not the base pass: when an overlay exists it can wall off a corridor with a new monster, and the level the player actually gets is the one that has to be playable.
 - Entity counts match the requested `entityCount`/`monsterCount` (15 and 5 in the original).
 

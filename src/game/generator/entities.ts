@@ -84,9 +84,6 @@ function makeItemEntity(template: ItemTemplate, id: EntityId, pos: Pos): Entity 
     fns: { encounter: template.encounter },
     ...(template.dmg !== undefined ? { dmg: template.dmg } : {}),
     ...(template.armour !== undefined ? { armour: template.armour } : {}),
-    // Copied, not shared: templates outlive the level, and phase 7 persists
-    // state through Immer, which freezes whatever it can reach.
-    ...(template.modalSprites !== undefined ? { modalSprites: [...template.modalSprites] } : {}),
   }
 }
 

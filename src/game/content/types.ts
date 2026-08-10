@@ -40,8 +40,6 @@ export interface ItemTemplate {
   dmg?: number
   /** Armour absorption, added to the player's total while carried. */
   armour?: number
-  /** Sprites for the pickup modal, when the item's own sprite reads wrong there. */
-  modalSprites?: Sprite[]
 }
 
 /** The thing an item hides under. Its encounter behavior is always `uncoverItem`. */

@@ -58,16 +58,6 @@ export const hashSeed = (...parts: (string | number)[]): number => djb2a(parts.j
 export const levelSeed = (request: LevelRequest): number =>
   hashSeed(request.runSeed, request.depth)
 
-/**
- * The combat stream for a level, independent of the generation stream.
- *
- * Separate so that consuming combat rolls — which happens at a rate set by how
- * the player plays — cannot shift what the generator produces. Without this, a
- * run seed would stop meaning anything the moment the player threw a punch.
- */
-export const combatRng = (request: LevelRequest): Rng =>
-  makeRng('combat', request.runSeed, request.depth)
-
 function wrap(rot: ReturnType<typeof RotRng.clone>): Rng {
   return {
     next: () => rot.getUniform(),

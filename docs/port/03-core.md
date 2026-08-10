@@ -64,7 +64,7 @@ export function hashSeed(...parts: (string | number)[]): number
 
 **The invariant:** nothing under `src/game/` calls `Math.random`. There is an ESLint rule enforcing it. Every function that needs randomness takes an `Rng` parameter. This is the single most important thing to preserve during phases 4 and 5, because a stray `Math.random` produces a level that looks fine and is silently non-reproducible — the worst kind of bug to find later.
 
-**Seed derivation:** `runSeed` is chosen once per run *by the caller* — `Math.random` is banned here too, so the entropy comes from the UI layer or from a user-typed seed. `levelSeed(request)` derives a level's stream as `hashSeed(runSeed, depth)`; `combatRng(request)` derives a separate one for combat, so player-paced roll consumption cannot shift what the generator produces.
+**Seed derivation:** `runSeed` is chosen once per run *by the caller* — `Math.random` is banned here too, so the entropy comes from the UI layer or from a user-typed seed. `levelSeed(request)` derives a level's stream as `hashSeed(runSeed, depth)`. Combat randomness is *not* seed-derived: the engine's `Rng` is created from fresh entropy at the edge and injected (decided 2026-08-09; see "Seeds control the world, not the story" in PLAN.md) — only generation repeats.
 
 The point is not exact replayability — this game has no daily shared dungeon to compare, so nobody needs it. It is that generation depending on exactly one struct (`LevelRequest`) makes the generator trivially testable and leaves an optional seed feature available later. See PLAN.md.
 
