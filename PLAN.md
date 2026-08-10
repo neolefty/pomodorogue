@@ -160,7 +160,7 @@ Update this as phases land.
 - [x] Phase 4 — Generator
 - [x] Phase 5 — Engine
 - [x] Phase 5.5 — Simplification
-- [ ] Phase 6 — UI ← **next**
-- [ ] Phase 7 — Pomodoro
+- [x] Phase 6 — UI — **the port is done; the game plays like the original**
+- [ ] Phase 7 — Pomodoro ← **next**, and the first phase that is new design
 - [ ] Phase 8 — Depth
 - [ ] Phase 9 — Server (deferred)

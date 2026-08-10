@@ -1,0 +1,377 @@
+/*
+ * Ported from original/public/css/style.css.
+ *
+ * Dropped, per docs/port/06-ui.md: the landing-page rules (`body.page`), the
+ * `.ad` block, the `#loading` spinner, `#score`, `.message` and `.donations` —
+ * the last three style markup the port has no equivalent of.
+ *
+ * Two deliberate divergences from the original:
+ *
+ * - The `@import` of Almendra SC from Google Fonts is gone. It is a
+ *   third-party request on every page load for one decorative heading face,
+ *   and the game is otherwise entirely self-hosted. The `font-family` still
+ *   names it, so a reader who has it installed sees it; everyone else gets the
+ *   serif fallback.
+ * - The original's game rules hang off `body.game` / `body.page`, because one
+ *   stylesheet dressed both the game and its landing pages. There is only the
+ *   game here, so those rules apply to `body` directly.
+ */
+
+:root {
+  --tile-width: 32px;
+  --bump-amount: 0.25;
+}
+
+@media only screen and (max-device-width: 600px) {
+  :root {
+    --tile-width: 16px;
+    font-size: 0.75em;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: #fcfbf3;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  max-width: 100%;
+  width: 800px;
+  margin: auto;
+  font-family: 'Courier New', 'Courier', 'Courier 10 Pitch', monospace;
+  font-weight: bold;
+  font-size: 2em;
+  color: #31373d;
+  /* Vertical panning only: horizontal drags are the board's, not the page's. */
+  touch-action: pan-y;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+@media only screen and (max-device-width: 600px) {
+  div.row {
+    transform: translateY(-3em);
+  }
+}
+
+p {
+  font-weight: bold;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Almendra SC', serif;
+}
+
+a {
+  color: grey;
+  font-size: 0.75em;
+}
+
+button,
+.button {
+  border: 2px solid #4d9029;
+  border-bottom: 5px solid #4d9029;
+  background-color: #78b159;
+  border-radius: 6px;
+  font-family: 'Courier New', 'Courier', 'Courier 10 Pitch', monospace;
+  font-size: 1em;
+  font-weight: bold;
+  color: #555;
+  padding: 0.25em 0.5em;
+}
+
+button:active,
+.button:active {
+  border-bottom: 2px solid #4d9029;
+  margin-bottom: 3px;
+  transform: translateY(4px);
+}
+
+button.key {
+  border: 2px solid #aab8c2;
+  border-bottom: 5px solid #aab8c2;
+  background-color: #d4e1ea;
+}
+
+button.key:active {
+  border-bottom: 2px solid #aab8c2;
+}
+
+button.key svg {
+  width: 1em;
+  height: 1em;
+}
+
+button.key svg path {
+  fill: #555;
+}
+
+/***** layout *****/
+
+#app {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+#game {
+  display: flex;
+  justify-content: center;
+}
+
+button#help {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+}
+
+/***** the board *****/
+
+div.row {
+  height: var(--tile-width);
+}
+
+span.grid {
+  display: inline-block;
+  width: var(--tile-width);
+  height: var(--tile-width);
+}
+
+span.grid > * {
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+img.tile {
+  width: var(--tile-width);
+}
+
+span.stat {
+  font-size: 0.5em;
+  top: -1em;
+  position: absolute;
+  color: #333;
+  text-shadow: 0px 0px 3px white;
+  opacity: 0.5;
+}
+
+/***** health bars *****/
+
+span.xp {
+  display: inline-block;
+  width: var(--tile-width);
+  height: var(--tile-width);
+  vertical-align: top;
+  font-size: 0.75em;
+  text-align: center;
+  position: relative;
+  top: 0.15em;
+}
+
+#health-bars {
+  top: 8px;
+  margin: auto;
+  position: absolute;
+}
+
+/***** inventory and controls *****/
+
+#inventory ul {
+  position: absolute;
+  bottom: 8px;
+  left: 0px;
+  list-style-type: none;
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  padding: 0px;
+  margin: 0px;
+}
+
+#inventory li {
+  display: inline-block;
+}
+
+#inventory li + li {
+  margin-left: 0.25em;
+}
+
+#arrow-buttons {
+  position: absolute;
+  bottom: 1.5em;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  right: 0.5em;
+}
+
+#arrow-buttons > div {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#arrow-buttons button span {
+  vertical-align: sub;
+}
+
+#arrow-buttons button svg {
+  vertical-align: text-top;
+}
+
+/***** modals and the tombstone *****/
+
+.modal {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 1em;
+  background-color: #fcfbf3;
+  z-index: 2;
+  overflow-y: auto;
+}
+
+.tombstone {
+  background-color: white;
+  border-radius: 6px;
+  border: 1px solid #ccd6dd;
+  padding: 1em;
+  margin: 1em;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  max-width: 600px;
+  width: 95%;
+  text-align: center;
+  font-size: 0.75em;
+}
+
+.tombstone #stats p {
+  color: #6c7a88;
+  margin: 0px;
+}
+
+.tombstone hr {
+  width: 100%;
+  border: none;
+  height: 1px;
+  background-color: #ccd6dd;
+}
+
+.tombstone .again {
+  margin: 0.5em;
+  margin-top: 0px;
+}
+
+.build {
+  font-size: 0.5em;
+  color: grey;
+}
+
+/***** juice *****/
+
+.pop {
+  animation: pop 0.25s;
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0);
+    animation-timing-function: cubic-bezier(0.59, 2.5, 0.88, 0.32);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.grow-and-fade {
+  animation: grow-and-fade 1s forwards;
+}
+
+@keyframes grow-and-fade {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+.bump-up {
+  animation: bump-up 0.25s;
+}
+
+@keyframes bump-up {
+  from {
+    transform: translateY(calc(var(--tile-width) * var(--bump-amount) * -1));
+  }
+  to {
+    transform: translateY(0px);
+  }
+}
+
+.bump-left {
+  animation: bump-left 0.25s;
+}
+
+@keyframes bump-left {
+  from {
+    transform: translateX(calc(var(--tile-width) * var(--bump-amount) * -1));
+  }
+  to {
+    transform: translateX(0px);
+  }
+}
+
+.bump-down {
+  animation: bump-down 0.25s;
+}
+
+@keyframes bump-down {
+  from {
+    transform: translateY(calc(var(--tile-width) * var(--bump-amount)));
+  }
+  to {
+    transform: translateY(0px);
+  }
+}
+
+.bump-right {
+  animation: bump-right 0.25s;
+}
+
+@keyframes bump-right {
+  from {
+    transform: translateX(calc(var(--tile-width) * var(--bump-amount)));
+  }
+  to {
+    transform: translateX(0px);
+  }
+}
