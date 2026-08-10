@@ -91,7 +91,7 @@ describe('share string', () => {
   // already is. The original did the same with rogule.com (`ui.cljs:226`).
   it('ends the clipboard text with a link back to the game', () => {
     const text = shareText(makeState(), stats())
-    expect(text.split('\n').at(-1)).toBe('https://github.com/neolefty/pomodorogue')
+    expect(text.split('\n').at(-1)).toBe('https://pomodorogue.com')
   })
 
   it('lists kills most recent first', () => {

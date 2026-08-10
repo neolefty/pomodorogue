@@ -27,8 +27,7 @@ export interface ShareRender<T> {
   /**
    * A link back to the game on the last line, or `null` on the screen, where
    * the reader is already at the game. The original did the same, keyed off
-   * the separator (`ui.cljs:226`); its URL was rogule.com, ours is the repo —
-   * this port has no deployed home yet.
+   * the separator (`ui.cljs:226`).
    */
   url: string | null
 }
@@ -118,7 +117,7 @@ export const shareText = (state: GameState, statistics: Statistics): string =>
       sprite: (s) => s.char,
       text: (t) => t,
       br: '\n',
-      url: 'https://github.com/neolefty/pomodorogue',
+      url: 'https://pomodorogue.com',
     },
     state,
     statistics,
