@@ -15,7 +15,7 @@ import { addItemToInventory, uncoverItem } from './encounters.ts'
 import type { Dir } from './movement.ts'
 import { DIR_DELTAS, moveTo, posInDir } from './movement.ts'
 import { addEntity } from './state.ts'
-import { REJUVENATION_RATE, takeTurn } from './turn.ts'
+import { expireAnimation, REJUVENATION_RATE, takeTurn } from './turn.ts'
 
 // ***** fixtures ***** //
 
@@ -371,6 +371,25 @@ describe('outcomes', () => {
     expect(next.entities[PLAYER_ID]!.pos).toEqual([2, 2])
   })
 
+  // The death frame is not a throwaway: it is what the UI leaves on screen and
+  // what the tombstone reports on. Without a guard inside the monster loop,
+  // whether a monster got a free go over the body came down to where it sat in
+  // the entity table. See note 5 in docs/port/00-review-notes.md.
+  it('ends the turn on the killing blow, leaving later monsters where they were', () => {
+    // m1 is adjacent and armed; m2 is well inside its activation range and
+    // would close in on any turn it were given.
+    const state = makeTestState([
+      player([4, 4], { stats: { hp: { cur: 1, max: 1 }, xp: 3, hpInc: 0 } }),
+      monster('m1', [5, 4], { inventory: [axe('m1-axe', [5, 4])] }),
+      monster('m2', [4, 7], { activation: 20 }),
+    ])
+    const next = firstRollWhere(
+      (r) => takeTurn(state, null, r),
+      (s) => s.outcome === 'died',
+    )
+    expect(next.entities['m2']!.pos).toEqual([4, 7])
+  })
+
   it('ignores further turns once the game is over', () => {
     const state = { ...makeTestState([player([2, 2])]), outcome: 'died' as const }
     expect(takeTurn(state, 'right', rng())).toBe(state)
@@ -486,6 +505,30 @@ describe('item encounters', () => {
     expect(next.entities['c1']).toBeUndefined()
     expect(next.entities['hidden']).toBeDefined()
     expect(next.entities['smoke']).toBeDefined()
+  })
+})
+
+describe('expireAnimation', () => {
+  // The engine's second entry point, and the only one the UI calls outside the
+  // turn loop: transient effects carry `disposal: 'destroy'` and are cleared
+  // when their animation ends. It exists so the UI never has to open a
+  // `produce` of its own. See "Animations" in docs/port/06-ui.md.
+  it('removes the entity whose animation finished, and nothing else', () => {
+    const smoke = item('smoke', [3, 2], {
+      layer: 'between',
+      animation: { name: 'fade', disposal: 'destroy' },
+    })
+    const state = makeTestState([player([2, 2]), smoke])
+    const next = expireAnimation(state, 'smoke')
+    expect(next.entities['smoke']).toBeUndefined()
+    expect(next.entities[PLAYER_ID]).toBeDefined()
+  })
+
+  // An `animationend` can arrive for an element whose entity something else
+  // already removed this turn, so the no-op case is a real path, not paranoia.
+  it('is a no-op for an id that is already gone', () => {
+    const state = makeTestState([player([2, 2])])
+    expect(expireAnimation(state, 'never-existed')).toBe(state)
   })
 })
 

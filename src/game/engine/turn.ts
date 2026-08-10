@@ -9,12 +9,12 @@ import { castDraft, produce } from 'immer'
 import type { Draft } from 'immer'
 import { getPlayer } from '../entities.ts'
 import type { Rng } from '../rng.ts'
-import type { GameState } from '../types.ts'
+import type { EntityId, GameState } from '../types.ts'
 import { PLAYER_ID } from '../types.ts'
 import { updateMonsters } from './monsters.ts'
 import type { Dir } from './movement.ts'
 import { moveTo, posInDir } from './movement.ts'
-import { resetCombatList } from './state.ts'
+import { removeEntity, resetCombatList } from './state.ts'
 
 /** Moves per point of regenerated health. The original spells it `rejuvination-rate`. */
 export const REJUVENATION_RATE = 100
@@ -62,9 +62,10 @@ function restoreHealth(draft: Draft<GameState>): void {
  * deliberately not derived from the level seed; see "Seeds control the world,
  * not the story" in PLAN.md.
  *
- * **This is the engine's only `produce`.** Everything below it mutates the
+ * **This is the turn path's only `produce`.** Everything below it mutates the
  * draft. The external contract is unchanged and is what the UI holds: frozen
- * state in, frozen state out. See §6 of docs/port/05a-simplify.md.
+ * state in, frozen state out. See §6 of docs/port/05a-simplify.md. The rule is
+ * per entry point, not per codebase — {@link expireAnimation} is the other one.
  */
 export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState {
   // Not in the original, which left the key handler live after death and relied
@@ -93,3 +94,20 @@ export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState
     updateMonsters(draft, rng)
   })
 }
+
+/**
+ * Drops an entity whose animation has finished playing.
+ *
+ * Smoke puffs and collision markers carry `disposal: 'destroy'`; the UI's
+ * `onAnimationEnd` calls this to clear them. It is the engine's second entry
+ * point — and the reason the "one `produce`" rule above is stated per entry
+ * point. The UI does not get to reach for Immer or hand-spread state itself.
+ *
+ * Removing an id that is already gone is a no-op, which matters because an
+ * `animationend` can arrive for an element the same turn something else removed
+ * its entity.
+ */
+export const expireAnimation = (state: GameState, id: EntityId): GameState =>
+  produce(state, (draft) => {
+    removeEntity(draft, id)
+  })

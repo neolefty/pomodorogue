@@ -236,19 +236,23 @@ next session does not re-find them. Tree green at 103 tests.
    dropped the snapshot entirely (`summarize` copies two scalars on the spot),
    and its `current(me.drop)` now routes through `detach`.
 
+## Closed by phase 6's step 0 (2026-08-10)
+
+4. ~~**Monster pathfinding runs before the activation gate.**~~ **Done**, in the
+   two commits "Step 0" prescribed. The gate first learned that an empty path
+   means *no route*, not zero distance — which moved the shared chase/combat
+   RNG stream and took the test churn on its own commit — and the manhattan
+   early-out then landed on top of it as a pure speedup, verified by 12 seeds ×
+   300 turns producing byte-identical states (2146ms → 469ms). A walled-off
+   monster is now pinned by a test that counts *draws*, not positions: the old
+   gate rested such a monster anyway, so the wasted roll was the whole visible
+   effect.
+5. ~~**`updateMonsters` keeps running after the player dies.**~~ **Done**, same
+   pass — `updateMonsters` returns on `draft.outcome`, so the death frame no
+   longer depends on where a monster sat in the entity table.
+
 ## Open, with a home
 
-4. **Monster pathfinding runs before the activation gate.** Specced as "Step 0"
-   in [06-ui.md](06-ui.md) — it becomes visible when phase 6 puts `takeTurn`
-   inside a keypress handler. Read that section before touching it: the obvious
-   early-out is *not* a drop-in, because `findPath` returns `[]` for an
-   unreachable monster and `0 < activation` passes the gate (~17% of
-   monster-turns measured).
-5. **`updateMonsters` keeps running after the player dies.** No `draft.outcome`
-   check in the loop, so monsters later in the list still take their turn, and
-   `moveTo`'s corpse guard lets them step onto the body. Only affects the
-   frozen death frame — which is exactly what phase 6 renders, phase 7 persists
-   and phase 8 screenshots, so fix it before the tombstone work.
 6. **The shrine-reaching move is not counted.** `takeTurn` returns on
    `draft.outcome` before `draft.moves += 1`, so a cleared level reports one
    fewer move than a death does. Invisible until phase 8 builds the share
@@ -262,9 +266,8 @@ next session does not re-find them. Tree green at 103 tests.
 
 ## Open, cosmetic
 
-8. `engine/index.ts` re-exports `moveTo` / `updateMonsters`, which 5.5 §6 turned
-   into draft mutators no caller can use — already scheduled as phase 6's first
-   task.
+8. ~~`engine/index.ts` re-exports `moveTo` / `updateMonsters`~~ — **done**,
+   pruned alongside the `expireAnimation` reducer that phase 6's UI needs.
 9. `combat.ts` imports `makeCollisionMarker` from `generator/entities.ts`,
    coupling play-time code to generation. A leaf `src/game/effects.ts` holding
    it and `makeSmokeJuice` untangles it; worth doing before phase 9 splits the

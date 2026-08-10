@@ -87,6 +87,13 @@ export function updateMonsters(draft: Draft<GameState>, rng: Rng): void {
   })
 
   for (const id of ids) {
+    // The turn ends the moment the player dies — monsters later in the list do
+    // not get a free go over the body. `takeTurn` guards the player's own move
+    // this way; without the same guard here, whether a monster acts after the
+    // killing blow came down to its position in the entity table. What that
+    // spoils is the frozen death frame, which is exactly what the UI renders
+    // and the tombstone reports. See note 5 in docs/port/00-review-notes.md.
+    if (draft.outcome) return
     const entity = draft.entities[id]
     if (!entity || entity.dead) continue
     chasePlayer(draft, id, entity, rng)
