@@ -48,7 +48,9 @@ export function combat(
 ): [boolean, GameState] {
   const them = state.entities[theirId]
   const me = state.entities[myId]
-  if (!them || !me) return [true, state]
+  // A target without stats has no hp to lose — without this guard the
+  // `?? 0` fallbacks below would read it as killed by a zero-damage miss.
+  if (!them || !me || !me.stats) return [true, state]
 
   const hit = rng.pick([0, 1, 1, 1, 1, 1])
   const hpHit = rng.int(them.stats?.xp ?? 0)
@@ -56,30 +58,29 @@ export function combat(
   const hpArmour = getArmourHp(me)
   const hpReduction = Math.max(0, (hpHit + hpWeapons - hpArmour) * hit)
 
-  const myHp = me.stats?.hp[0] ?? 0
-  const updatedHp = Math.max(0, myHp - hpReduction)
+  const updatedHp = Math.max(0, me.stats.hp[0] - hpReduction)
   const killed = updatedHp === 0
 
   // Built here, before the death block below swaps the sprite for a skull —
   // otherwise every kill would be recorded as a skull (`engine.cljs:269`).
-  const victim = summarize(me)
-  const killer = summarize(them)
+  // Only a fatal exchange records either summary, so a miss allocates nothing.
+  const fatal = killed ? { victim: summarize(me), killer: summarize(them) } : null
 
   const next = produce(state, (draft) => {
     const meDraft = draft.entities[myId]
     if (meDraft?.stats) meDraft.stats.hp[0] = updatedHp
 
-    if (killed && theirId === PLAYER_ID) {
+    if (fatal && theirId === PLAYER_ID) {
       const player = draft.entities[theirId]
       if (player) {
         const kills = (player.kills ??= [])
-        kills.push(victim)
+        kills.push(fatal.victim)
         if (kills.length % KILLS_PER_XP === 0 && player.stats) player.stats.xp += 1
       }
     }
 
-    if (killed) {
-      addKilledBy(draft, myId, killer)
+    if (fatal) {
+      addKilledBy(draft, myId, fatal.killer)
     } else {
       // Only a survived exchange puts bars on screen; a fatal one records
       // nothing (`engine.cljs:277-283`). Both are offered, and the helper drops

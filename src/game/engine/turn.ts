@@ -6,6 +6,7 @@
  * What this file owns is the order things happen in once a direction is known.
  */
 import { produce } from 'immer'
+import { getPlayer } from '../entities.ts'
 import type { Rng } from '../rng.ts'
 import type { GameState } from '../types.ts'
 import { PLAYER_ID } from '../types.ts'
@@ -24,21 +25,24 @@ export const REJUVENATION_RATE = 100
  * healing up and taking a fresh wound restarts the climb (`engine.cljs:112-125`).
  */
 export function restorePlayerHealth(state: GameState): GameState {
-  return produce(state, (draft) => {
-    const stats = draft.entities[PLAYER_ID]?.stats
-    if (!stats) return
-    if (stats.hp[0] >= stats.hp[1]) {
-      stats.hpInc = 0
-      return
-    }
-    const hpInc = stats.hpInc + 1
-    if (hpInc >= REJUVENATION_RATE) {
-      stats.hpInc = 0
-      stats.hp[0] += 1
-    } else {
-      stats.hpInc = hpInc
-    }
-  })
+  return produce(state, restoreHealth)
+}
+
+/** The draft-side body, so `takeTurn` can fold it into its own produce pass. */
+function restoreHealth(draft: GameState): void {
+  const stats = draft.entities[PLAYER_ID]?.stats
+  if (!stats) return
+  if (stats.hp[0] >= stats.hp[1]) {
+    stats.hpInc = 0
+    return
+  }
+  const hpInc = stats.hpInc + 1
+  if (hpInc >= REJUVENATION_RATE) {
+    stats.hpInc = 0
+    stats.hp[0] += 1
+  } else {
+    stats.hpInc = hpInc
+  }
 }
 
 /**
@@ -65,7 +69,7 @@ export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState
   // engine safe on its own.
   if (state.outcome) return state
 
-  const player = state.entities[PLAYER_ID]
+  const player = getPlayer(state)
   if (!player) return state
   const newPos = dir ? posInDir(player.pos, dir) : null
 
@@ -74,9 +78,10 @@ export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState
 
   if (next.outcome || !next.entities[PLAYER_ID]?.moved) return next
 
+  // One produce pass for the whole between-moves bookkeeping.
   next = produce(next, (draft) => {
     draft.moves += 1
+    restoreHealth(draft)
   })
-  next = restorePlayerHealth(next)
   return updateMonsters(next, rng)
 }

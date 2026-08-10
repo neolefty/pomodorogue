@@ -2,10 +2,10 @@
  * Monster AI, such as it is. Ports `chase-player` and `update-monsters` from
  * original/src/rogule/engine.cljs.
  */
+import { getPlayer } from '../entities.ts'
 import { findPath } from '../grid.ts'
 import type { Rng } from '../rng.ts'
 import type { Entity, EntityId, GameState } from '../types.ts'
-import { PLAYER_ID } from '../types.ts'
 import { makeMonsterPassable, moveTo } from './movement.ts'
 import { UPDATE_FNS } from './registry.ts'
 
@@ -31,7 +31,7 @@ export function chasePlayer(
   monster: Entity,
   rng: Rng,
 ): GameState {
-  const player = state.entities[PLAYER_ID]
+  const player = getPlayer(state)
   if (!player) return state
 
   const passable = makeMonsterPassable(state, monsterId, monster)
@@ -40,7 +40,8 @@ export function chasePlayer(
   if (path.length < (monster.activation ?? 0) && rng.next() < CHASE_CHANCE) {
     // `path[0]` is where the monster already stands; step to the next square.
     // An empty path leaves this undefined, which `moveTo` reads as a rest.
-    return moveTo(state, monsterId, path[1] ?? null, rng)
+    // The predicate rides along so `moveTo` need not rebuild it.
+    return moveTo(state, monsterId, path[1] ?? null, rng, passable)
   }
   return state
 }

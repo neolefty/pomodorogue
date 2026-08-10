@@ -10,7 +10,7 @@ import { produce } from 'immer'
 import type { PassableFn } from '../grid.ts'
 import { canPassTile } from '../grid.ts'
 import type { Pos } from '../pos.ts'
-import { keyOf, posKey } from '../pos.ts'
+import { keyOf, posEquals, posKey } from '../pos.ts'
 import type { Rng } from '../rng.ts'
 import type { Entity, EntityId, GameState } from '../types.ts'
 import { PLAYER_ID } from '../types.ts'
@@ -32,12 +32,12 @@ export const posInDir = (pos: Pos, dir: Dir): Pos => {
 }
 
 /** Keyed by the move's delta, so a bump plays away from whatever was hit. */
-const BUMP_ANIMATIONS: Record<string, string> = {
-  [posKey(-1, 0)]: 'bump-left',
-  [posKey(1, 0)]: 'bump-right',
-  [posKey(0, -1)]: 'bump-up',
-  [posKey(0, 1)]: 'bump-down',
-}
+const BUMP_ANIMATIONS: Record<string, string> = Object.fromEntries(
+  (Object.entries(DIR_DELTAS) as [Dir, Pos][]).map(([dir, [dx, dy]]) => [
+    posKey(dx, dy),
+    `bump-${dir}`,
+  ]),
+)
 
 /** The player walks on any passable tile; only entities stop them. */
 export function makePlayerPassable(state: GameState, _id: EntityId, _entity: Entity): PassableFn {
@@ -82,12 +82,17 @@ export function makeMonsterPassable(
  *
  * Only these branches set `moved`, which is what makes bumping a monster cost a
  * turn while walking into a wall does not.
+ *
+ * `passable` lets a caller that has already built the mover's predicate (as
+ * `chasePlayer` does for pathfinding) pass it in, instead of paying for the
+ * entity-table scan a second time.
  */
 export function moveTo(
   state: GameState,
   id: EntityId,
   newPos: Pos | null,
   rng: Rng,
+  passable?: PassableFn,
 ): GameState {
   // No direction, so rest is assumed — and resting is a kind of move.
   if (!newPos) {
@@ -101,18 +106,12 @@ export function moveTo(
   if (!entity) return state
   const pos = entity.pos
 
-  const passableName = entity.fns?.passable
-  const passable = passableName ? PASSABLE_FNS[passableName](state, id, entity) : undefined
-  const passableTile = passable ? passable(newPos[0], newPos[1]) : true
-
   // Snapshot who is standing there before any encounter runs, as the original
   // does: an encounter may remove an entity, and the list must not shift under
   // the loop. Scanning directly rather than via `entitiesByPos` keeps the
   // original's insertion order and avoids indexing a table we are about to
   // replace anyway.
-  const occupants = Object.values(state.entities).filter(
-    (e) => e.pos[0] === newPos[0] && e.pos[1] === newPos[1],
-  )
+  const occupants = Object.values(state.entities).filter((e) => posEquals(e.pos, newPos))
 
   let blocks = false
   let next = state
@@ -127,6 +126,16 @@ export function moveTo(
     )
     blocks = blocks || occupantBlocks
     next = afterEncounter
+  }
+
+  // Only the not-blocked branch consults the predicate, and building it scans
+  // the whole entity table for a monster — so it waits until we know it matters.
+  // Built against the pre-encounter `state`, as it always was.
+  let passableTile = true
+  if (!blocks) {
+    const passableName = entity.fns?.passable
+    const fn = passable ?? (passableName ? PASSABLE_FNS[passableName](state, id, entity) : undefined)
+    passableTile = fn ? fn(newPos[0], newPos[1]) : true
   }
 
   const bump = BUMP_ANIMATIONS[posKey(newPos[0] - pos[0], newPos[1] - pos[1])] ?? 'bump'

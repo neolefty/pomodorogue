@@ -3,7 +3,7 @@ import { builtinContent } from '../content/builtin.ts'
 import { makeLevel } from '../generator/index.ts'
 import { canPassTile, findPath } from '../grid.ts'
 import type { Pos, PosMap } from '../pos.ts'
-import { posKey } from '../pos.ts'
+import { posEquals, posKey } from '../pos.ts'
 import type { Rng } from '../rng.ts'
 import { makeRng } from '../rng.ts'
 import { SPRITES } from '../sprites.ts'
@@ -507,10 +507,9 @@ describe('against a generated level', () => {
       )
       const nextStep = path[1]
       if (!nextStep) break
-      const dir = (Object.keys(DIR_DELTAS) as Dir[]).find((d) => {
-        const target = posInDir(from, d)
-        return target[0] === nextStep[0] && target[1] === nextStep[1]
-      })
+      const dir = (Object.keys(DIR_DELTAS) as Dir[]).find((d) =>
+        posEquals(posInDir(from, d), nextStep),
+      )
       walked = takeTurn(walked, dir ?? null, dice)
     }
     expect(walked.outcome).toBe('descended')
