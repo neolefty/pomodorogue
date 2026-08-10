@@ -29,3 +29,16 @@ export const posEquals = (a: Pos, b: Pos): boolean => a[0] === b[0] && a[1] === 
  * `visibleDist ** 2`), exactly as the original does at `ui.cljs:153`.
  */
 export const distanceSq = (a: Pos, b: Pos): number => (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2
+
+/**
+ * Grid distance ignoring obstacles: `|dx| + |dy|`.
+ *
+ * **A lower bound on path length, and only for 4-way movement.** A shortest
+ * 4-way path from `a` to `b` takes at least this many steps, so `chasePlayer`
+ * can reject a monster too far away to activate without running A* at all. If
+ * movement ever goes 8-way the bound stops holding and must become Chebyshev
+ * (`max(|dx|, |dy|)`), or the early-out starts skipping monsters that could in
+ * fact reach the player.
+ */
+export const manhattan = (a: Pos, b: Pos): number =>
+  Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1])

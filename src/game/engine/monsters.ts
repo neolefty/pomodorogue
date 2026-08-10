@@ -5,6 +5,7 @@
 import type { Draft } from 'immer'
 import { getPlayer } from '../entities.ts'
 import { findPath } from '../grid.ts'
+import { manhattan } from '../pos.ts'
 import type { Rng } from '../rng.ts'
 import type { Entity, EntityId, GameState } from '../types.ts'
 import { makeMonsterPassable, moveTo } from './movement.ts'
@@ -41,10 +42,24 @@ export function chasePlayer(
   const player = getPlayer(draft)
   if (!player) return
 
+  // Cheap rejection before the expensive question. `findPath` returns both
+  // endpoints, so a reachable player is at least `manhattan + 1` nodes away;
+  // a monster that far off cannot clear `activation` whatever route it takes,
+  // and asking A* costs a full search to learn nothing. Nearly every monster
+  // fails here on nearly every turn — measured over 100 turns of runSeed 3, the
+  // pathfinder emitted 7,551 nodes, almost all of them discarded — and phase 6
+  // puts this inside the keypress handler.
+  //
+  // This must stay *above* the `rng` draw: a monster that fails on distance has
+  // never touched the stream, and moving the roll earlier would shift every
+  // seeded playthrough. See `manhattan` for why the bound is 4-way only.
+  const activation = monster.activation ?? 0
+  if (manhattan(monster.pos, player.pos) + 1 >= activation) return
+
   const passable = makeMonsterPassable(draft, monsterId)
   const path = findPath(monster.pos, player.pos, passable)
 
-  if (path.length > 0 && path.length < (monster.activation ?? 0) && rng.next() < CHASE_CHANCE) {
+  if (path.length > 0 && path.length < activation && rng.next() < CHASE_CHANCE) {
     // `path[0]` is where the monster already stands; step to the next square.
     // The gate above guarantees there is one. The predicate rides along so
     // `moveTo` need not rebuild it.
