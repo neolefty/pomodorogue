@@ -130,6 +130,32 @@ function firstRollWhere(
 
 const rng = (n = 1): Rng => makeRng('test', n)
 
+/**
+ * An `Rng` that counts how often it was drawn from.
+ *
+ * Some engine behavior is only observable in the stream. A monster that fails
+ * its activation gate and one that passes it and then dawdles both end the turn
+ * standing still — the difference is that the first never rolled, and every
+ * later roll in the turn is offset by whether it did.
+ */
+function countingRng(inner: Rng): Rng & { readonly draws: number } {
+  let draws = 0
+  const tally = <T>(draw: () => T): T => {
+    draws += 1
+    return draw()
+  }
+  return {
+    get draws() {
+      return draws
+    },
+    next: () => tally(() => inner.next()),
+    int: (max) => tally(() => inner.int(max)),
+    range: (lo, hi) => tally(() => inner.range(lo, hi)),
+    pick: (items) => tally(() => inner.pick(items)),
+    weighted: (items, weight) => tally(() => inner.weighted(items, weight)),
+  }
+}
+
 // ***** tests ***** //
 
 describe('combat', () => {
@@ -499,6 +525,45 @@ describe('monsters', () => {
     expect(next.entities['m1']!.pos[0]).toBeLessThan(6)
   })
 
+  // The activation gate is measured in path steps, inclusive of both ends, so a
+  // monster three tiles along the path has `path.length === 4`. These two pin
+  // the boundary from either side against one fixed seed.
+  it('wakes at one step inside its activation range and not at one step outside', () => {
+    const near = makeTestState([player([2, 2]), monster('m1', [5, 2], { activation: 5 })])
+    expect(takeTurn(near, null, rng()).entities['m1']!.pos).not.toEqual([5, 2])
+
+    const far = makeTestState([player([2, 2]), monster('m1', [5, 2], { activation: 4 })])
+    expect(takeTurn(far, null, rng()).entities['m1']!.pos).toEqual([5, 2])
+  })
+
+  // A monster with no route at all used to be maximally awake, which is the
+  // opposite of what `activation` means: `findPath` returns `[]` for
+  // unreachable, and `[].length < activation` passes the gate. Not a corner
+  // case — `makeMonsterPassable` blocks on every occupied square, so monsters
+  // wall each other off routinely. See "Step 0" in docs/port/06-ui.md.
+  //
+  // The assertion is on the *stream*, not the position: passing the gate with
+  // an empty path fed `moveTo` a null and rested, so the monster held still
+  // either way. The whole visible effect was one wasted roll, which offset
+  // every later roll in the turn.
+  it('does not even roll when walled off from the player entirely', () => {
+    const state = makeTestState([player([4, 4]), monster('m1', [1, 1], { activation: 20 })])
+    // Seal m1 into its corner: these are the three tiles joining it to the room.
+    for (const [x, y] of [
+      [2, 1],
+      [1, 2],
+      [2, 2],
+    ] as Pos[]) {
+      state.map.floorTiles[tileIndex(state.map.size, x, y)] = TILE.wall
+    }
+    expect(findPath([1, 1], [4, 4], (x, y) => canPassTile(state.map, [x, y]))).toEqual([])
+
+    const dice = countingRng(rng())
+    const next = takeTurn(state, null, dice)
+    expect(next.entities['m1']!.pos).toEqual([1, 1])
+    expect(dice.draws).toBe(0)
+  })
+
   it('routes around another monster rather than through it', () => {
     // m2 sits between m1 and the player; m1 must not end up on m2's square.
     const state = makeTestState([
@@ -569,7 +634,17 @@ describe('against a generated level', () => {
   it('reaches the shrine when walked straight to it', () => {
     // Pathing to the shrine and following the path exercises movement against
     // real geometry, rather than the open box the fixtures use.
-    const state = makeLevel({ runSeed: 12345, depth: 1 }, builtinContent)
+    //
+    // The player is given hp headroom because this is a test about geometry,
+    // not about winning fights. A level-1 player walked straight down the path
+    // with no tactics is a coin flip on the dice seed — 5 of the first 10 died
+    // en route — which made the assertion below hostage to any change that
+    // shifts the roll stream. With headroom it descends on all 48 (runSeed,
+    // diceSeed) pairs surveyed. Combat has its own tests; this one is movement.
+    const generated = makeLevel({ runSeed: 12345, depth: 1 }, builtinContent)
+    const state = produce(generated, (draft) => {
+      draft.entities[PLAYER_ID]!.stats!.hp = { cur: 200, max: 200 }
+    })
     const dice = makeRng('dice', 1)
     let walked = state
     let path = findPath(walked.entities[PLAYER_ID]!.pos, state.entities['shrine']!.pos, (x, y) =>
