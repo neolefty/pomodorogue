@@ -1,6 +1,6 @@
 # Pomodorogue — port plan
 
-**Goal:** port [Rogule](https://github.com/chr15m/rogule.com) from ClojureScript to TypeScript/React, then turn it from a once-a-day single-level game into the *break* half of a pomodoro cycle: play one dungeon level every 25 minutes, ~5 minutes of gameplay, descend via stairs, permadeath resets to level 1.
+**Goal:** port [Rogule](https://github.com/chr15m/rogule.com) from ClojureScript to TypeScript/React, then turn it from a once-a-day single-level game into the *break* half of a pomodoro cycle: a five-minute break every 25 minutes, a level that freezes and resumes if it outlasts the break, descend via stairs, permadeath resets to depth 1.
 
 **Status:** port in progress. See the status board at the bottom.
 
@@ -27,9 +27,10 @@ These are working documents for the port, not long-term reference. Delete `docs/
 **Terminology** (used consistently across these docs and the code):
 
 - **run** — one permadeath lifetime. Starts at depth 1, ends when the player dies. Carries HP, inventory, and XP across levels.
-- **level** — one generated dungeon at a given depth. One level ≈ one pomodoro break.
+- **level** — one generated dungeon at a given depth. A level usually fits in one break, but it may freeze at the break's end and resume in the next one.
 - **depth** — 1-based level number within a run.
-- **cycle** — one 25-minute work interval followed by one level.
+- **break** — the five minutes of play a cycle earns. Its clock starts on the player's first action, not when the break becomes available.
+- **cycle** — one 25-minute work interval followed by one break.
 - **seed** — `runSeed` is per-run; each level's seed is derived as `hashSeed(runSeed, depth)`.
 
 `GameState` holds exactly one level. Run-scoped things — carried inventory, depth, lifetime statistics — live outside it, in the run state that phase 7 introduces.
@@ -142,8 +143,8 @@ Monster and item tables are reached through a `ContentProvider` interface even t
 
 Answer these when the phase that needs them comes up. Don't block earlier phases on them.
 
-1. **What happens when the 5-minute level timer expires mid-level?** Options: (a) hard stop, counts as a death and ends the run; (b) hard stop, level abandoned, run survives, retry the same depth next cycle; (c) soft — just a visual warning, no enforcement. Current default in the plan is **(b)**, as (a) makes an interruption at work destroy an hour of progress. Needed by phase 7.
-2. **Can you bank breaks?** If you skip two cycles, do you get two levels? Default: **no**, the gate is simply "is now past `nextPlayableAt`". Needed by phase 7.
+1. ~~**What happens when the 5-minute level timer expires mid-level?**~~ **Answered 2026-08-10: the level freezes and resumes next break.** None of the three options on the table — (a) it kills the run, (b) the level is abandoned and the depth regenerated, (c) no enforcement — were taken. The level persists exactly as it stands, the 25-minute work interval starts, and the next break resumes the same `GameState`: same monsters, same positions, same HP. Nothing is lost for a reason outside the game, and the walk-away exploit that (b) carried disappears, because walking away returns you to the same fight. A level is therefore no longer required to fit in one break. Paired with this: **the break clock starts on the player's first action**, not when the break becomes available, so working past the bell costs you nothing. See "The break clock" in [07-pomodoro.md](docs/port/07-pomodoro.md).
+2. ~~**Can you bank breaks?**~~ **Answered 2026-08-10: no — breaks do not stack.** Skip three cycles and you get one break. But it is expressed as `maxBankedBreaks: 1` in a `PomodoroConfig` rather than as a hardcoded boolean, alongside `workMs` and `breakMs`. Tests need the durations injectable regardless, and a later feature — an account perk, a custom break length — should be a value change rather than a redesign. The config is not exposed in the UI. Raising the cap above 1 needs one further decision, deliberately deferred; see "The gate" in [07-pomodoro.md](docs/port/07-pomodoro.md).
 3. **How does difficulty scale with depth?** The original scales within a level by path distance from the player's start (`pos-to-difficulty`). Depth needs to shift the monster table index too. Needed by phase 8.
 4. **Does the run end at some depth, or go forever?** Needed by phase 8.
 5. ~~**Do tile maps stay `PosMap` (`"x,y"`-keyed objects), or become flat arrays?**~~ **Answered 2026-08-10: flat arrays.** `GameMap.floorTiles` is a `Tile[]` of numeric codes indexed `y * w + x`; the branded `PosKey` and its helpers are gone, and the entity index keeps string keys. With §2 in the same pass this took a serialized `GameState` from 19,828 to 11,827 bytes. See the decision note at §3 of [05a-simplify.md](docs/port/05a-simplify.md), which also records the two things that turned out differently from the sketch.
