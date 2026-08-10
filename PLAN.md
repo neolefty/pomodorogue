@@ -145,7 +145,7 @@ Update this as phases land.
 - [x] Phase 1 — Scaffold
 - [x] Phase 2 — Sprites
 - [x] Phase 3 — Core
-- [ ] Phase 4 — Generator
+- [x] Phase 4 — Generator
 - [ ] Phase 5 — Engine
 - [ ] Phase 6 — UI
 - [ ] Phase 7 — Pomodoro

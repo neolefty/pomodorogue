@@ -5,6 +5,7 @@
 import type { PosKey } from './pos.ts'
 import { keyOf } from './pos.ts'
 import type { Entity, EntityId, GameState, Layer } from './types.ts'
+import { PLAYER_ID } from './types.ts'
 
 export const LAYERS: readonly Layer[] = ['floor', 'between', 'occupy', 'above']
 
@@ -68,7 +69,7 @@ export function countEntities(entities: Iterable<Entity>, name: string): number 
   return n
 }
 
-export const getPlayer = (state: GameState): Entity | undefined => state.entities['player']
+export const getPlayer = (state: GameState): Entity | undefined => state.entities[PLAYER_ID]
 
 /**
  * Allocates the next entity id. Deterministic, unlike the original's random UUIDs.

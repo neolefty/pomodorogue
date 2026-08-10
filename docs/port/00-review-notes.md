@@ -14,6 +14,13 @@ The prep pass is done — items 1–5 are folded into the docs and code, tree st
 green at 34 tests. **Items 6 and 7 remain open by design.** Nothing here needs
 re-reading before phase 4 except item 7.
 
+**Update (phase 4 landed):** item 7 is discharged — the determinism test was
+written first and is bound to `makeBaseLevel`. Only item 6 (post-port renames,
+after phase 6) is still open. Phase 4 turned up three deliberate divergences from
+the original; they are documented in [04-generator.md](04-generator.md) under
+"Divergences", and the monster sub-table one is a genuine bug in the original
+worth knowing about before reading `generator.cljs` side by side.
+
 | # | Status |
 |---|---|
 | 1. `ContentProvider` takes `LevelRequest` | ✅ folded into `04-generator.md` |
@@ -22,7 +29,7 @@ re-reading before phase 4 except item 7.
 | 4. Drop follows its monster | ✅ folded into `05-engine.md` + its test list |
 | 5. Doc drift | ✅ all four fixed |
 | 6. Post-port renames | ⏸ open, deferred to after phase 6 as intended |
-| 7. Hold the phase-4 determinism test | ⏸ open — **an instruction for whoever writes phase 4** |
+| 7. Hold the phase-4 determinism test | ✅ held — written first, bound to `makeBaseLevel` |
 
 Two corrections to the notes below, found while applying them:
 
