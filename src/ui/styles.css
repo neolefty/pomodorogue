@@ -293,6 +293,71 @@ span.xp {
   color: grey;
 }
 
+/***** the pomodoro timer *****/
+
+/*
+ * A work interval. The board stays on screen — dimmed, drained of colour and
+ * inert — because hiding it would read as "the level is gone", which is exactly
+ * what freezing exists to avoid. The refusal itself lives in `move`; this is
+ * what stops a click from looking like it landed.
+ */
+#game.frozen {
+  opacity: 0.3;
+  filter: grayscale(0.8);
+  pointer-events: none;
+  user-select: none;
+}
+
+.timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+}
+
+.timer .timer-label {
+  font-size: 0.5em;
+  color: #6c7a88;
+}
+
+.timer .timer-clock {
+  /* Fixed-width digits, or the countdown jitters once a second. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* While playing: small, top right, clear of the centred health bars. */
+.timer.break {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 0.75em;
+}
+
+/* The last minute. Advisory, not alarm — no red, no blinking. */
+.timer.break.warn .timer-clock {
+  color: #cc7722;
+}
+
+/* During a work interval: centred over the frozen board. */
+.timer.work {
+  position: absolute;
+  top: 50%;
+  left: 0px;
+  width: 100%;
+  transform: translateY(-50%);
+  z-index: 1;
+  font-size: 1.5em;
+}
+
+.timer.work .timer-label {
+  font-size: 0.4em;
+}
+
+/* On the tombstone, where the original had its "next rogule" countdown. */
+.timer.next {
+  font-size: 1.25em;
+}
+
 /***** juice *****/
 
 .pop {

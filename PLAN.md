@@ -53,6 +53,7 @@ Each phase is a doc in `docs/port/`. They are ordered by dependency; do them in 
 | 5.5 | Simplification | [05a-simplify.md](docs/port/05a-simplify.md) | Shed ported structure that isn't earning its keep, before the UI is written against it |
 | 6 | UI | [06-ui.md](docs/port/06-ui.md) | React components + CSS; **game is playable and matches the original** |
 | 7 | Pomodoro | [07-pomodoro.md](docs/port/07-pomodoro.md) | 25-minute gate, 5-minute level cap, persistence across reloads |
+| 7.5 | Break payoff | [07a-break-payoff.md](docs/port/07a-break-payoff.md) | Finishing early keeps the rest of the break, earns a bonus, and rings a bell |
 | 8 | Depth | [08-depth.md](docs/port/08-depth.md) | Stairs instead of shrine, multi-level runs, difficulty ramp |
 | 9 | Server (deferred) | [09-server.md](docs/port/09-server.md) | Optional backend for AI-generated content. Not built yet — only the seam is. |
 
@@ -148,6 +149,7 @@ Answer these when the phase that needs them comes up. Don't block earlier phases
 3. **How does difficulty scale with depth?** The original scales within a level by path distance from the player's start (`pos-to-difficulty`). Depth needs to shift the monster table index too. Needed by phase 8.
 4. **Does the run end at some depth, or go forever?** Needed by phase 8.
 5. ~~**Do tile maps stay `PosMap` (`"x,y"`-keyed objects), or become flat arrays?**~~ **Answered 2026-08-10: flat arrays.** `GameMap.floorTiles` is a `Tile[]` of numeric codes indexed `y * w + x`; the branded `PosKey` and its helpers are gone, and the entity index keeps string keys. With §2 in the same pass this took a serialized `GameState` from 19,828 to 11,827 bytes. See the decision note at §3 of [05a-simplify.md](docs/port/05a-simplify.md), which also records the two things that turned out differently from the sketch.
+6. **What does finishing a level early earn, and does it carry?** Raised by Bill on 2026-08-10 after playing phase 7, which gives a fast player nothing for it but a longer wait. The candidates — a `PlayerCarry` bonus versus a mark on the share string — pull in opposite directions on balance, so decide alongside phase 8's difficulty ramp rather than before it. Needed by phase 7.5; see [07a-break-payoff.md](docs/port/07a-break-payoff.md).
 
 ---
 
@@ -162,6 +164,7 @@ Update this as phases land.
 - [x] Phase 5 — Engine
 - [x] Phase 5.5 — Simplification
 - [x] Phase 6 — UI — **the port is done; the game plays like the original**
-- [ ] Phase 7 — Pomodoro ← **next**, and the first phase that is new design
+- [x] Phase 7 — Pomodoro — **the game is a pomodoro timer; a run survives a reload**
+- [ ] Phase 7.5 — Break payoff ← **next**
 - [ ] Phase 8 — Depth
 - [ ] Phase 9 — Server (deferred)

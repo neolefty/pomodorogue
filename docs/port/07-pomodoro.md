@@ -2,7 +2,17 @@
 
 **Outcome:** the game becomes the break half of a pomodoro cycle. A five-minute break per 25-minute work interval, a level that freezes and resumes if it outlasts its break, everything surviving a browser reload.
 
-**Status:** not started; phase 6 is done and both of this phase's open questions were settled on 2026-08-10 (see "The gate" and "The break clock"). This is the first phase that changes the design rather than porting it.
+**Status:** landed 2026-08-10, built as specified. Both of this phase's open questions were settled the same day (see "The gate" and "The break clock"). This is the first phase that changes the design rather than porting it.
+
+One thing was added that this doc did not call for: `PomodoroConfig` has a
+fourth field, `warnMs`, for how long before the end the advisory appears. The
+doc asked for a warning "at 4 minutes" and asked durations to live in the config
+so a test never waits — a hard-coded minute would have fired continuously under
+a test config with a two-second break, which is the rot the config exists to
+prevent. Everything else below is as written.
+
+Phase 7.5 revisits one decision here — a win or a death should not start the
+work interval early. See [07a-break-payoff.md](07a-break-payoff.md).
 
 ## Operating facts
 
@@ -129,7 +139,7 @@ nothing else.
 canPlay(schedule, now, config) => breaksAvailable(schedule, now, config) > 0
 ```
 
-On break end — win, death, or freeze — set `nextPlayableAt = now + config.workMs`. Deliberately *not* `previousNextPlayableAt + workMs`: the interval starts when you stop playing, so a long break doesn't eat into the next work block. Note this fires on freeze too, which is what puts a frozen level's next break a full work interval away rather than immediately.
+On break end — win, death, or freeze — set `nextPlayableAt = now + config.workMs`. *(Phase 7.5 narrows this to the freeze: a win or a death should let the rest of the break run rather than starting the work interval early. See [07a-break-payoff.md](07a-break-payoff.md).)* Deliberately *not* `previousNextPlayableAt + workMs`: the interval starts when you stop playing, so a long break doesn't eat into the next work block. Note this fires on freeze too, which is what puts a frozen level's next break a full work interval away rather than immediately.
 
 ### No banking, expressed as a cap
 
@@ -140,6 +150,7 @@ type PomodoroConfig = {
   workMs: number           // 25 * 60_000
   breakMs: number          // 5 * 60_000
   maxBankedBreaks: number  // 1
+  warnMs: number           // 60_000 — added when built; see the status note
 }
 ```
 
@@ -187,6 +198,8 @@ Tick at 1s for display. The gate itself reads the clock directly, so a throttled
 Also recompute on `visibilitychange` so returning to the tab updates immediately rather than at the next throttled tick.
 
 ## Not in this phase
+
+Everything under [07a-break-payoff.md](07a-break-payoff.md) — keeping the rest of the break after an early finish, a bonus for finishing early, a sound at the hand-off back to work, and a manual "start my work interval now" control. Raised after playing what this phase shipped.
 
 Notifications when the break becomes available are an obvious follow-on, but need a permission prompt and belong in their own change. Stairs and multi-level runs are phase 8 — at the end of phase 7 the shrine still ends the level, it just gates the next one on a timer instead of on tomorrow.
 

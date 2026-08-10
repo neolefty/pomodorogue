@@ -6,14 +6,17 @@
  * and the feedback mailto. Kept: the share string, the share button, and the
  * statistics.
  *
- * Two things here are placeholders with a known replacement:
+ * Where the original counted down to tomorrow's rogule, `footer` holds the
+ * pomodoro countdown to the next break — the whole point being that the next
+ * level is 25 minutes away, not tomorrow. Nothing here decides when that is;
+ * the screen is replaced on its own when the break arrives, so there is no
+ * "play again" button to press and none of the original's reload button either.
  *
- * - The original's "next rogule" countdown is a **play again** button. Phase 7
- *   puts the pomodoro timer in its place — the whole point being that the next
- *   level is 25 minutes away, not tomorrow.
- * - This appears on *every* outcome. Phase 8 makes a cleared level roll
- *   straight on to the next depth, and leaves the tombstone for death alone.
+ * One placeholder is left: this appears on *every* outcome. Phase 8 makes a
+ * cleared level roll straight on to the next depth, and leaves the tombstone
+ * for death alone.
  */
+import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import type { GameState, Statistics } from '../game/types.ts'
 import { Attribution } from './Attribution.tsx'
@@ -22,7 +25,8 @@ import { shareTiles, shareText } from './shareString.tsx'
 interface TombstoneProps {
   state: GameState
   statistics: Statistics
-  onPlayAgain: () => void
+  /** Rendered where the original put its countdown. */
+  footer: ReactNode
 }
 
 /**
@@ -59,7 +63,7 @@ function ShareButton({ text }: { text: string }) {
   )
 }
 
-export function Tombstone({ state, statistics, onPlayAgain }: TombstoneProps) {
+export function Tombstone({ state, statistics, footer }: TombstoneProps) {
   const cleared = statistics.levelsCleared
   const plays = statistics.runs
 
@@ -76,9 +80,7 @@ export function Tombstone({ state, statistics, onPlayAgain }: TombstoneProps) {
         </div>
         <ShareButton text={shareText(state, statistics)} />
         <hr />
-        <p className="again">
-          <button onClick={onPlayAgain}>Play again</button>
-        </p>
+        <div className="again">{footer}</div>
         <hr />
         <div id="stats">
           <p>Plays: {plays}</p>
