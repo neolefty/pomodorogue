@@ -38,7 +38,7 @@ These are working documents for the port, not long-term reference. Delete `docs/
 
 ## Phases
 
-Each phase is a doc in `docs/port/`. They are ordered by dependency; do them in order. Phases 1–5 are a straight port that reproduces the original game's behavior. Phases 6–7 are the new pomodoro design. Phase 8 is deferred.
+Each phase is a doc in `docs/port/`. They are ordered by dependency; do them in order. Phases 1–6 are a straight port that reproduces the original game's behavior, with 5.5 a pause to shed structure the port carried over without need. Phases 7–8 are the new pomodoro design. Phase 9 is deferred.
 
 | # | Phase | Doc | Outcome |
 |---|---|---|---|
@@ -47,12 +47,15 @@ Each phase is a doc in `docs/port/`. They are ordered by dependency; do them in 
 | 3 | Core | [03-core.md](docs/port/03-core.md) | Types, RNG, map/tile/path helpers — pure, no React |
 | 4 | Generator | [04-generator.md](docs/port/04-generator.md) | Deterministic level generation |
 | 5 | Engine | [05-engine.md](docs/port/05-engine.md) | Movement, combat, encounters, monster AI |
+| 5.5 | Simplification | [05a-simplify.md](docs/port/05a-simplify.md) | Shed ported structure that isn't earning its keep, before the UI is written against it |
 | 6 | UI | [06-ui.md](docs/port/06-ui.md) | React components + CSS; **game is playable and matches the original** |
 | 7 | Pomodoro | [07-pomodoro.md](docs/port/07-pomodoro.md) | 25-minute gate, 5-minute level cap, persistence across reloads |
 | 8 | Depth | [08-depth.md](docs/port/08-depth.md) | Stairs instead of shrine, multi-level runs, difficulty ramp |
 | 9 | Server (deferred) | [09-server.md](docs/port/09-server.md) | Optional backend for AI-generated content. Not built yet — only the seam is. |
 
 **Milestone to aim for:** end of phase 6 is a faithful playable clone. Everything before that is a port with no design changes; everything after is new design. Do not mix the two — a bug found after phase 7 should be answerable with "did this work at phase 6?"
+
+Phase 5.5 does not break that rule: it changes internal structure only, and its success condition is that no player-visible behavior changes at all. It sits before phase 6 rather than after because phase 6 is what multiplies the call sites — see "Why now" in [05a-simplify.md](docs/port/05a-simplify.md).
 
 ---
 
@@ -115,9 +118,13 @@ The original stores function references as keywords and looks them up in a regis
 
 In TypeScript this gets *better* than the original — the function names become a string-literal union, so a typo is a compile error rather than a silent no-op. See [05-engine.md](docs/port/05-engine.md).
 
+**Refined in phase 5.5, without weakening the rule.** Phase 5 implemented this as three per-entity behavior names (`fns.encounter`, `fns.update`, `fns.passable`) resolved through three registries. Those names turned out to be fully determined by what the entity *is* — every monster carries the same three — so 5.5 collapses them to a single `kind` discriminant resolved by an exhaustive `switch`. State is still JSON-serializable, behavior is still named by a string, and a bad name is still a compile error. What goes away is writing the name three times and a genuine import cycle that only the registry created. See §1 of [05a-simplify.md](docs/port/05a-simplify.md).
+
 ### Immer for state updates
 
-The engine is written as pure `state -> state` reducers. Immer preserves that style nearly line-for-line from the Clojure and keeps structural sharing, which matters because entity-position indexing is memoized on object identity. See [03-core.md](docs/port/03-core.md).
+The engine is written as pure `state -> state` reducers. Immer preserves that style nearly line-for-line from the Clojure, and it earns its keep on the nested writes — `draft.entities[id].stats.hp[0]`, `inventory.push(...)` — which are four levels deep and unpleasant to hand-spread. See [03-core.md](docs/port/03-core.md).
+
+**Refined in phase 5.5, in two ways.** First, the boundary moves: phase 5 wrapped nearly every micro-edit in its own `produce`, which forced the `[blocks, state]` tuple returns and a mixed pure/draft style; 5.5 reduces the engine to exactly one `produce`, at `takeTurn`, with everything beneath it mutating the draft. The reducer shape survives where it is real — the `takeTurn` seam the UI holds — and stops being paid for per line. Second, the justification gets corrected: this decision originally credited Immer with keeping the memoized entity-position index alive via structural sharing. That reasoning is wrong — every turn moves the player, so `entities` changes and the index rebuilds every turn regardless. Immer and the memo are two independent wins, not one supporting the other. See §6 of [05a-simplify.md](docs/port/05a-simplify.md), which also fixes the same claim in the code comment at `entities.ts:33`.
 
 ### `src/game/` has no DOM or React dependency
 
@@ -137,6 +144,7 @@ Answer these when the phase that needs them comes up. Don't block earlier phases
 2. **Can you bank breaks?** If you skip two cycles, do you get two levels? Default: **no**, the gate is simply "is now past `nextPlayableAt`". Needed by phase 7.
 3. **How does difficulty scale with depth?** The original scales within a level by path distance from the player's start (`pos-to-difficulty`). Depth needs to shift the monster table index too. Needed by phase 8.
 4. **Does the run end at some depth, or go forever?** Needed by phase 8.
+5. **Do tile maps stay `PosMap` (`"x,y"`-keyed objects), or become flat arrays?** The string keys are a faithful stand-in for ClojureScript's `[x y]` vector keys, but the grid is a fixed 32×32 and an array is JSON-serializable too — at roughly 1 byte per tile in the save file instead of ~15, and without the branded-key helpers. Against: it is the largest diff in phase 5.5 and buys clarity plus save size, not capability. **Needed by phase 5.5** — and only then, because phase 6 doubles the call sites. Declining is a fine answer; leaving it open is not. See §3 of [05a-simplify.md](docs/port/05a-simplify.md).
 
 ---
 
@@ -149,6 +157,7 @@ Update this as phases land.
 - [x] Phase 3 — Core
 - [x] Phase 4 — Generator
 - [x] Phase 5 — Engine
+- [ ] Phase 5.5 — Simplification ← **next**
 - [ ] Phase 6 — UI
 - [ ] Phase 7 — Pomodoro
 - [ ] Phase 8 — Depth

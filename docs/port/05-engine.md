@@ -20,6 +20,8 @@ Input handling itself does **not** live here — it is UI, and goes in phase 6. 
 
 ## The function registry
 
+> **Superseded by phase 5.5.** This section describes the mechanism as built and as it stands today, and it is accurate as a record of phase 5. But the three registries collapse to a single `kind` discriminant in §1 of [05a-simplify.md](05a-simplify.md) — including the import-cycle constraint below, which exists *because* of the registry and goes away with it. Read this for what landed; read 05a for what to build on. Nothing here is being retracted as wrong.
+
 This is the piece to get right first, because everything else hangs off it.
 
 Entities store behavior as *names*, not function references, so state stays serializable (see PLAN.md). The original resolves them with `ns-interns` at runtime, which is dynamic and unchecked. The name unions — `EncounterFnName`, `UpdateFnName`, `PassableFnName` — **already exist in `types.ts`**, declared there so `types.ts` stays dependency-free, and already consumed by `content/` and the generator's entity templates. The registries assert exhaustiveness *against* those unions:
@@ -61,6 +63,8 @@ Note `chase-player` draws from this same stream — one roll per active monster 
 `Dir` is `'left' | 'right' | 'up' | 'down'`; it and its delta table go in `movement.ts`. The UI maps keys to `Dir`, never to raw deltas.
 
 ## The encounter return convention
+
+> **Superseded by phase 5.5.** Accurate as a record of phase 5, but §6 of [05a-simplify.md](05a-simplify.md) removes the tuple: encounters become draft mutators returning a bare `blocks: boolean`, so there is no pair left to get backwards. The *meaning* of `blocks` below is unchanged and still applies.
 
 Encounter functions return `[blocks, newState]`. `blocks` means "the mover does not advance into this square" — combat blocks, picking up an item does not, uncovering a cover blocks (you spend the turn revealing it). `move-to` reduces over every entity at the target position, ORing the `blocks` flags.
 
@@ -133,6 +137,8 @@ Death does five things in one place in the original (`engine.cljs:307-316`): set
 
 ## Immer and the entity index
 
+> **Mostly superseded by phase 5.5.** §6 of [05a-simplify.md](05a-simplify.md) reduces the engine to a single `produce` at `takeTurn`, after which the first rule below collapses to "index the state you passed to `produce`". The second rule (never index a freshly built object) survives unchanged.
+
 `entitiesByPos` memoizes per entities-object identity in a module-level `WeakMap`. Two ways to defeat it accidentally:
 
 - **Never call it on an Immer draft** — that memoizes against the draft proxy and reads entities through proxies. Inside a reducer, index the *pre-produce* state (fine — the index describes positions before the move) or scan `state.entities` directly.
@@ -176,6 +182,8 @@ Five decisions this doc left open, settled during implementation:
    kill site the original wrote as a single threaded expression. Assignments of
    plain entities into a draft go through Immer's `castDraft`, because `Draft<T>`
    strips the `readonly` off `Pos` and a plain `Entity` is then not assignable.
+   *(Phase 5.5 §6 generalizes this: the draft-mutator style becomes the rule for
+   the whole engine below `takeTurn`, not the documented exception.)*
 3. **`takeTurn` is a no-op once `outcome` is set.** Not in the original, which
    left its key handler live after death and relied on the modal to cover the
    board. Phase 6 will gate input as well; this makes the engine safe alone.
