@@ -67,6 +67,24 @@ export function makeSmokeJuice(id: EntityId, pos: Pos): Entity {
 }
 
 /**
+ * The starburst shown where a blow lands.
+ *
+ * Unlike the smoke puff this is spawned during play rather than at generation —
+ * combat allocates its id from the live state — but it belongs here beside the
+ * other sprite-carrying constructors rather than in the engine.
+ */
+export function makeCollisionMarker(id: EntityId, pos: Pos): Entity {
+  return {
+    id,
+    name: 'collision',
+    sprite: SPRITES.collision,
+    pos,
+    layer: 'above',
+    animation: { name: 'grow-and-fade', disposal: 'destroy' },
+  }
+}
+
+/**
  * Weighted pick over a template table, rarer items being less likely. Ports
  * `get-random-entity-by-value` from map.cljs, where the weight is `1 / value`.
  */

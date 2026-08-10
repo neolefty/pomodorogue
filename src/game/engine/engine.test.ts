@@ -1,0 +1,533 @@
+import { describe, expect, it } from 'vitest'
+import { builtinContent } from '../content/builtin.ts'
+import { makeLevel } from '../generator/index.ts'
+import { canPassTile, findPath } from '../grid.ts'
+import type { Pos, PosMap } from '../pos.ts'
+import { posKey } from '../pos.ts'
+import type { Rng } from '../rng.ts'
+import { makeRng } from '../rng.ts'
+import { SPRITES } from '../sprites.ts'
+import type { Entity, EntityId, GameMap, GameState, TileType } from '../types.ts'
+import { PLAYER_ID } from '../types.ts'
+import { combat, getArmourHp, getWeaponsDmg } from './combat.ts'
+import type { Dir } from './movement.ts'
+import { DIR_DELTAS, moveTo, posInDir } from './movement.ts'
+import { REJUVENATION_RATE, takeTurn } from './turn.ts'
+
+// ***** fixtures ***** //
+
+// One open room with a wall around it. Small enough to reason about, big enough
+// that a monster can chase across it.
+const SIZE = 9
+
+function makeTestMap(): GameMap {
+  const floorTiles: PosMap<TileType> = {}
+  const roomTiles: PosMap<TileType> = {}
+  for (let x = 0; x < SIZE; x++) {
+    for (let y = 0; y < SIZE; y++) {
+      const isWall = x === 0 || y === 0 || x === SIZE - 1 || y === SIZE - 1
+      floorTiles[posKey(x, y)] = isWall ? 'wall' : 'room'
+      if (!isWall) roomTiles[posKey(x, y)] = 'room'
+    }
+  }
+  return {
+    floorTiles,
+    roomTiles,
+    corridorTiles: {},
+    rooms: [{ x1: 1, y1: 1, x2: SIZE - 2, y2: SIZE - 2, doors: [] }],
+    size: [SIZE, SIZE],
+  }
+}
+
+function makeTestState(entities: Entity[]): GameState {
+  return {
+    seed: 1,
+    depth: 1,
+    map: makeTestMap(),
+    entities: Object.fromEntries(entities.map((e) => [e.id, e])),
+    // Well above the fixtures' own ids, so a spawn during play cannot collide.
+    nextEntityId: 100,
+    moves: 0,
+    combatants: {},
+    outcome: null,
+    counts: {},
+    log: [{ type: 'start', seed: 1, depth: 1 }],
+  }
+}
+
+const player = (pos: Pos, over: Partial<Entity> = {}): Entity => ({
+  id: PLAYER_ID,
+  name: 'you',
+  sprite: SPRITES.elf,
+  pos,
+  layer: 'occupy',
+  stats: { hp: [10, 10], xp: 3, hpInc: 0 },
+  inventory: [],
+  fns: { encounter: 'combat', passable: 'playerPassable' },
+  ...over,
+})
+
+const monster = (id: EntityId, pos: Pos, over: Partial<Entity> = {}): Entity => ({
+  id,
+  name: 'the rat',
+  sprite: SPRITES.rat,
+  pos,
+  layer: 'occupy',
+  activation: 20,
+  stats: { hp: [3, 3], xp: 2, hpInc: 0 },
+  fns: { encounter: 'combat', update: 'chasePlayer', passable: 'monsterPassable' },
+  ...over,
+})
+
+const item = (id: EntityId, pos: Pos, over: Partial<Entity> = {}): Entity => ({
+  id,
+  name: 'chestnut',
+  sprite: SPRITES.chestnut,
+  pos,
+  layer: 'floor',
+  value: 1,
+  fns: { encounter: 'addItemToInventory' },
+  ...over,
+})
+
+const axe = (id: EntityId, pos: Pos): Entity =>
+  item(id, pos, { name: 'axe', sprite: SPRITES.axe, dmg: 10 })
+
+/**
+ * The first outcome over a fixed sweep of seeds that satisfies `predicate`.
+ *
+ * Combat connects on 5 rolls in 6, so "this blow lands" is not a property any
+ * single seed guarantees. Searching a deterministic seed range keeps the test
+ * reproducible without reaching for a loaded die.
+ */
+function firstRollWhere(
+  run: (rng: Rng) => GameState,
+  predicate: (state: GameState) => boolean,
+): GameState {
+  for (let n = 0; n < 100; n++) {
+    const result = run(makeRng('test', n))
+    if (predicate(result)) return result
+  }
+  throw new Error('firstRollWhere: no seed in 0..99 produced the required outcome')
+}
+
+const rng = (n = 1): Rng => makeRng('test', n)
+
+// ***** tests ***** //
+
+describe('combat', () => {
+  it('is deterministic under a fixed injected seed', () => {
+    const state = makeTestState([player([2, 2]), monster('m1', [3, 2])])
+    const once = combat(state, PLAYER_ID, 'm1', rng(7))
+    const twice = combat(state, PLAYER_ID, 'm1', rng(7))
+    expect(once).toEqual(twice)
+  })
+
+  it('sums weapons and armour across the whole inventory', () => {
+    const carrier = player([2, 2], {
+      inventory: [
+        item('i1', [2, 2], { dmg: 2 }),
+        item('i2', [2, 2], { dmg: 1, armour: 3 }),
+        item('i3', [2, 2], { armour: 1 }),
+      ],
+    })
+    expect(getWeaponsDmg(carrier)).toBe(3)
+    expect(getArmourHp(carrier)).toBe(4)
+    expect(getWeaponsDmg(monster('m1', [1, 1]))).toBe(0)
+  })
+
+  it('lets armour absorb the blow entirely, leaving no damage and no death', () => {
+    // The rat's xp of 2 caps its roll at 1, and it carries no weapon, so two
+    // points of armour can never be beaten.
+    const armoured = player([2, 2], {
+      stats: { hp: [4, 10], xp: 3, hpInc: 0 },
+      inventory: [item('shield', [2, 2], { name: 'shield', sprite: SPRITES.shield, armour: 2 })],
+    })
+    const state = makeTestState([armoured, monster('m1', [3, 2])])
+
+    for (let n = 0; n < 30; n++) {
+      const [, next] = combat(state, 'm1', PLAYER_ID, rng(n))
+      const hit = next.entities[PLAYER_ID]!
+      expect(hit.stats!.hp[0]).toBe(4)
+      expect(hit.dead).toBeUndefined()
+      expect(next.log.at(-1)).toMatchObject({ type: 'combat', damage: 0, killed: false })
+    }
+  })
+
+  it('grants the player one xp for every second kill, not every kill', () => {
+    let state = makeTestState([
+      player([2, 2], { inventory: [axe('axe', [2, 2])] }),
+      monster('m1', [3, 2]),
+      monster('m2', [2, 3]),
+    ])
+    state = firstRollWhere(
+      (r) => combat(state, PLAYER_ID, 'm1', r)[1],
+      (s) => s.entities['m1']!.dead === true,
+    )
+    expect(state.entities[PLAYER_ID]!.stats!.xp).toBe(3)
+
+    state = firstRollWhere(
+      (r) => combat(state, PLAYER_ID, 'm2', r)[1],
+      (s) => s.entities['m2']!.dead === true,
+    )
+    expect(state.entities[PLAYER_ID]!.stats!.xp).toBe(4)
+    expect(state.entities[PLAYER_ID]!.kills).toHaveLength(2)
+  })
+})
+
+describe('the kill site', () => {
+  const killed = (): GameState => {
+    const state = makeTestState([
+      player([2, 2], { inventory: [axe('axe', [2, 2])] }),
+      monster('m1', [3, 2], { drop: item('loot', [3, 2]) }),
+    ])
+    return firstRollWhere(
+      (r) => combat(state, PLAYER_ID, 'm1', r)[1],
+      (s) => s.entities['m1']!.dead === true,
+    )
+  }
+
+  it('marks the corpse dead, sinks it to the floor and swaps in the skull', () => {
+    const corpse = killed().entities['m1']!
+    expect(corpse.dead).toBe(true)
+    expect(corpse.layer).toBe('floor')
+    expect(corpse.sprite).toEqual(SPRITES['skull-and-crossbones'])
+    expect(corpse.animation).toBeNull()
+  })
+
+  it('drops the loot into the world and clears it from the corpse', () => {
+    const state = killed()
+    expect(state.entities['loot']).toMatchObject({ name: 'chestnut', pos: [3, 2] })
+    // Divergence from the original, which left the corpse pointing at the
+    // now-live item: here it would double-count in countEntities.
+    expect('drop' in state.entities['m1']!).toBe(false)
+  })
+
+  it('strips the behavior keys rather than setting them undefined', () => {
+    const fns = killed().entities['m1']!.fns!
+    expect('update' in fns).toBe(false)
+    expect('encounter' in fns).toBe(false)
+    // The passable factory is deliberately left alone, as in the original.
+    expect(fns.passable).toBe('monsterPassable')
+  })
+
+  it('records the victim with its living sprite, not the skull', () => {
+    const kills = killed().entities[PLAYER_ID]!.kills!
+    expect(kills).toEqual([{ name: 'the rat', sprite: SPRITES.rat }])
+  })
+
+  it('records who did the killing', () => {
+    expect(killed().entities['m1']!.killedBy).toEqual({ name: 'you', sprite: SPRITES.elf })
+  })
+
+  it('drops loot where the monster died, not where it spawned', () => {
+    // The port trap at engine.cljs:88 — the drop's pos has to follow the mover.
+    let state = makeTestState([
+      player([6, 6], { inventory: [axe('axe', [6, 6])] }),
+      monster('m1', [1, 1], { drop: item('loot', [1, 1]) }),
+    ])
+    state = moveTo(state, 'm1', [2, 1], rng())
+    state = moveTo(state, 'm1', [3, 1], rng())
+    state = moveTo(state, 'm1', [3, 2], rng())
+    expect(state.entities['m1']!.pos).toEqual([3, 2])
+
+    state = firstRollWhere(
+      (r) => combat(state, PLAYER_ID, 'm1', r)[1],
+      (s) => s.entities['m1']!.dead === true,
+    )
+    expect(state.entities['loot']!.pos).toEqual([3, 2])
+  })
+})
+
+describe('combatants', () => {
+  it('records the monster exactly once for a survived exchange, and never the player', () => {
+    // The player bumps the monster, then the monster retaliates on its own turn.
+    // Two hits, one key — which is the point of keying by id.
+    const state = makeTestState([
+      player([2, 2]),
+      monster('m1', [3, 2], { stats: { hp: [9, 9], xp: 2, hpInc: 0 } }),
+    ])
+    const next = takeTurn(state, 'right', rng(3))
+    expect(next.entities['m1']!.dead).toBeUndefined()
+    expect(next.entities[PLAYER_ID]!.dead).toBeUndefined()
+    expect(Object.keys(next.combatants)).toEqual(['m1'])
+  })
+
+  it('records nothing at all for a fatal exchange', () => {
+    const state = makeTestState([
+      player([2, 2], { inventory: [axe('axe', [2, 2])] }),
+      monster('m1', [3, 2]),
+    ])
+    const next = firstRollWhere(
+      (r) => combat(state, PLAYER_ID, 'm1', r)[1],
+      (s) => s.entities['m1']!.dead === true,
+    )
+    expect(next.combatants).toEqual({})
+  })
+
+  it('is cleared at the start of each turn', () => {
+    const state = makeTestState([player([2, 2]), monster('m1', [6, 6], { activation: 1 })])
+    const next = takeTurn({ ...state, combatants: { m1: true } }, 'left', rng())
+    expect(next.combatants).toEqual({})
+  })
+})
+
+describe('outcomes', () => {
+  it('sets died when the player is killed', () => {
+    const state = makeTestState([
+      player([2, 2], { stats: { hp: [1, 1], xp: 3, hpInc: 0 } }),
+      monster('m1', [3, 2], { inventory: [axe('m1-axe', [3, 2])] }),
+    ])
+    const next = firstRollWhere(
+      (r) => combat(state, 'm1', PLAYER_ID, r)[1],
+      (s) => s.entities[PLAYER_ID]!.dead === true,
+    )
+    expect(next.outcome).toBe('died')
+    expect(next.log.at(-1)).toMatchObject({ type: 'outcome', outcome: 'died' })
+  })
+
+  it('sets descended when the player reaches the shrine', () => {
+    const shrine: Entity = {
+      id: 'shrine',
+      name: 'shrine',
+      sprite: SPRITES['shinto-shrine'],
+      pos: [3, 2],
+      layer: 'occupy',
+      fns: { encounter: 'finishLevel' },
+    }
+    const next = takeTurn(makeTestState([player([2, 2]), shrine]), 'right', rng())
+    expect(next.outcome).toBe('descended')
+    // The shrine blocks, so the player never actually steps onto the tile.
+    expect(next.entities[PLAYER_ID]!.pos).toEqual([2, 2])
+  })
+
+  it('ignores further turns once the game is over', () => {
+    const state = { ...makeTestState([player([2, 2])]), outcome: 'died' as const }
+    expect(takeTurn(state, 'right', rng())).toBe(state)
+  })
+})
+
+describe('what costs a turn', () => {
+  it('counts a rest', () => {
+    const next = takeTurn(makeTestState([player([2, 2])]), null, rng())
+    expect(next.moves).toBe(1)
+    expect(next.entities[PLAYER_ID]!.pos).toEqual([2, 2])
+  })
+
+  it('counts a bump into a monster', () => {
+    const state = makeTestState([
+      player([2, 2]),
+      monster('m1', [3, 2], { stats: { hp: [9, 9], xp: 2, hpInc: 0 } }),
+    ])
+    const next = takeTurn(state, 'right', rng())
+    expect(next.moves).toBe(1)
+    expect(next.entities[PLAYER_ID]!.pos).toEqual([2, 2])
+    expect(next.entities[PLAYER_ID]!.animation).toMatchObject({ name: 'bump-right' })
+  })
+
+  it('does not count a walk into a wall', () => {
+    const next = takeTurn(makeTestState([player([1, 1])]), 'left', rng())
+    expect(next.moves).toBe(0)
+    expect(next.entities[PLAYER_ID]!.pos).toEqual([1, 1])
+    expect(next.entities[PLAYER_ID]!.moved).toBe(false)
+  })
+
+  it('counts an ordinary step', () => {
+    const next = takeTurn(makeTestState([player([2, 2])]), 'down', rng())
+    expect(next.moves).toBe(1)
+    expect(next.entities[PLAYER_ID]!.pos).toEqual([2, 3])
+  })
+})
+
+describe('item encounters', () => {
+  it('picks an item up without blocking, and logs it', () => {
+    const state = makeTestState([player([2, 2]), item('i1', [3, 2])])
+    const next = takeTurn(state, 'right', rng())
+    expect(next.entities['i1']).toBeUndefined()
+    expect(next.entities[PLAYER_ID]!.inventory).toHaveLength(1)
+    expect(next.entities[PLAYER_ID]!.pos).toEqual([3, 2])
+    expect(next.log.at(-1)).toEqual({ type: 'item', name: 'chestnut' })
+  })
+
+  it('heals by three, capped at max', () => {
+    const wounded = player([2, 2], { stats: { hp: [8, 10], xp: 3, hpInc: 0 } })
+    const potion = item('p1', [3, 2], { name: 'health', fns: { encounter: 'increaseHp' } })
+    const next = takeTurn(makeTestState([wounded, potion]), 'right', rng())
+    expect(next.entities[PLAYER_ID]!.stats!.hp[0]).toBe(10)
+    expect(next.entities['p1']).toBeUndefined()
+  })
+
+  it('leaves the potion on the floor at full health', () => {
+    const potion = item('p1', [3, 2], { name: 'health', fns: { encounter: 'increaseHp' } })
+    const next = takeTurn(makeTestState([player([2, 2]), potion]), 'right', rng())
+    expect(next.entities['p1']).toBeDefined()
+    expect(next.entities[PLAYER_ID]!.pos).toEqual([3, 2])
+  })
+
+  it('uncovers a cover, revealing the drop and the smoke, and blocks the move', () => {
+    const cover = item('c1', [3, 2], {
+      name: 'rock',
+      sprite: SPRITES.rock,
+      fns: { encounter: 'uncoverItem' },
+      drop: item('hidden', [3, 2]),
+      juice: item('smoke', [3, 2], { name: 'smoke', sprite: SPRITES.cloud, layer: 'between' }),
+    })
+    const next = takeTurn(makeTestState([player([2, 2]), cover]), 'right', rng())
+    expect(next.entities['c1']).toBeUndefined()
+    expect(next.entities['hidden']).toBeDefined()
+    expect(next.entities['smoke']).toBeDefined()
+    // Revealing costs the turn: the player stays put but the move counts.
+    expect(next.entities[PLAYER_ID]!.pos).toEqual([2, 2])
+    expect(next.moves).toBe(1)
+  })
+
+  it('lets a monster walk over items without consuming them', () => {
+    const state = makeTestState([player([2, 2]), monster('m1', [4, 2]), item('i1', [3, 2])])
+    const next = takeTurn(state, 'up', rng(5))
+    expect(next.entities['i1']).toBeDefined()
+  })
+})
+
+describe('health regeneration', () => {
+  it('adds one hp when the counter comes due, and resets it', () => {
+    const wounded = player([2, 2], {
+      stats: { hp: [5, 10], xp: 3, hpInc: REJUVENATION_RATE - 1 },
+    })
+    const next = takeTurn(makeTestState([wounded]), null, rng())
+    expect(next.entities[PLAYER_ID]!.stats).toMatchObject({ hp: [6, 10], hpInc: 0 })
+  })
+
+  it('accumulates while below max', () => {
+    const wounded = player([2, 2], { stats: { hp: [5, 10], xp: 3, hpInc: 0 } })
+    const next = takeTurn(makeTestState([wounded]), null, rng())
+    expect(next.entities[PLAYER_ID]!.stats).toMatchObject({ hp: [5, 10], hpInc: 1 })
+  })
+
+  it('holds the counter at zero at full health', () => {
+    const healthy = player([2, 2], { stats: { hp: [10, 10], xp: 3, hpInc: 50 } })
+    const next = takeTurn(makeTestState([healthy]), null, rng())
+    expect(next.entities[PLAYER_ID]!.stats!.hpInc).toBe(0)
+  })
+})
+
+describe('monsters', () => {
+  it('stays asleep until the player is within its activation range', () => {
+    const sleeper = monster('m1', [6, 6], { activation: 2 })
+    const next = takeTurn(makeTestState([player([2, 2]), sleeper]), 'down', rng())
+    expect(next.entities['m1']!.pos).toEqual([6, 6])
+  })
+
+  it('closes the distance once woken', () => {
+    const state = makeTestState([player([2, 2]), monster('m1', [6, 2], { activation: 20 })])
+    let next = state
+    for (let i = 0; i < 3; i++) next = takeTurn(next, null, rng(i))
+    expect(next.entities['m1']!.pos[0]).toBeLessThan(6)
+  })
+
+  it('routes around another monster rather than through it', () => {
+    // m2 sits between m1 and the player; m1 must not end up on m2's square.
+    const state = makeTestState([
+      player([2, 2]),
+      monster('m1', [4, 2]),
+      monster('m2', [3, 2]),
+    ])
+    const next = takeTurn(state, 'up', rng(2))
+    expect(next.entities['m1']!.pos).not.toEqual([3, 2])
+  })
+})
+
+describe('against a generated level', () => {
+  // The fixtures above are hand-built and tidy. This plays real levels, which
+  // have covers hiding nothing, monsters with real activation ranges, and loot
+  // inside loot — the shapes a synthetic fixture quietly omits.
+  const DIRS = ['left', 'right', 'up', 'down', null] as const
+
+  it('survives a long random walk with its invariants intact', () => {
+    for (const runSeed of [1, 2, 3, 12345]) {
+      let state = makeLevel({ runSeed, depth: 1 }, builtinContent)
+      const walk = makeRng('walk', runSeed)
+      const dice = makeRng('dice', runSeed)
+
+      for (let turn = 0; turn < 400 && !state.outcome; turn++) {
+        state = takeTurn(state, walk.pick(DIRS), dice)
+
+        const self = state.entities[PLAYER_ID]!
+        expect(canPassTile(state.map.floorTiles, self.pos)).toBe(true)
+
+        for (const [id, entity] of Object.entries(state.entities)) {
+          // The table key and the entity's own id are two copies of one fact;
+          // an engine that spawns via the wrong one desynchronizes them.
+          expect(entity.id).toBe(id)
+          // A corpse that kept its update fn would go on chasing the player.
+          if (entity.dead) {
+            expect(entity.fns?.update).toBeUndefined()
+            expect(entity.fns?.encounter).toBeUndefined()
+          }
+        }
+      }
+
+      expect(state.moves).toBeGreaterThan(0)
+      expect(JSON.parse(JSON.stringify(state))).toEqual(state)
+    }
+  })
+
+  it('keeps allocating ids past the ones generation handed out', () => {
+    let state = makeLevel({ runSeed: 7, depth: 1 }, builtinContent)
+    const startingId = state.nextEntityId
+    const walk = makeRng('walk', 7)
+    const dice = makeRng('dice', 7)
+    for (let turn = 0; turn < 200 && !state.outcome; turn++) {
+      state = takeTurn(state, walk.pick(DIRS), dice)
+    }
+    // Some blow landed over 200 turns, so at least one collision marker spawned.
+    expect(state.nextEntityId).toBeGreaterThan(startingId)
+    const numeric = Object.keys(state.entities)
+      .filter((id) => /^e\d+$/.test(id))
+      .map((id) => Number(id.slice(1)))
+    expect(Math.max(...numeric)).toBeLessThan(state.nextEntityId)
+  })
+
+  it('reaches the shrine when walked straight to it', () => {
+    // Pathing to the shrine and following the path exercises movement against
+    // real geometry, rather than the open box the fixtures use.
+    const state = makeLevel({ runSeed: 12345, depth: 1 }, builtinContent)
+    const dice = makeRng('dice', 1)
+    let walked = state
+    let path = findPath(walked.entities[PLAYER_ID]!.pos, state.entities['shrine']!.pos, (x, y) =>
+      canPassTile(state.map.floorTiles, [x, y]),
+    )
+    expect(path.length).toBeGreaterThan(1)
+
+    for (let step = 0; step < 400 && !walked.outcome; step++) {
+      const from = walked.entities[PLAYER_ID]!.pos
+      // Re-path each step: a monster bump leaves the player where they were, and
+      // a fight can rearrange what is in the way.
+      path = findPath(from, state.entities['shrine']!.pos, (x, y) =>
+        canPassTile(state.map.floorTiles, [x, y]),
+      )
+      const nextStep = path[1]
+      if (!nextStep) break
+      const dir = (Object.keys(DIR_DELTAS) as Dir[]).find((d) => {
+        const target = posInDir(from, d)
+        return target[0] === nextStep[0] && target[1] === nextStep[1]
+      })
+      walked = takeTurn(walked, dir ?? null, dice)
+    }
+    expect(walked.outcome).toBe('descended')
+  })
+})
+
+describe('state stays serializable', () => {
+  it('round-trips through JSON after a run of turns', () => {
+    let state = makeTestState([
+      player([2, 2], { inventory: [axe('axe', [2, 2])] }),
+      monster('m1', [5, 2], { drop: item('loot', [5, 2]) }),
+      item('i1', [2, 3]),
+    ])
+    const dirs = ['down', 'right', 'right', null, 'right'] as const
+    dirs.forEach((dir, i) => {
+      state = takeTurn(state, dir, rng(i))
+    })
+    expect(JSON.parse(JSON.stringify(state))).toEqual(state)
+  })
+})

@@ -2,7 +2,7 @@
 
 **Outcome:** turn resolution — movement, encounters, combat, monster AI, health regeneration. Ports `original/src/rogule/engine.cljs` (422 lines), the densest file in the project.
 
-**Status:** not started. Re-checked against the phase 1–4 code on 2026-08-09; where this doc touches existing types, the signatures below are binding.
+**Status:** done (2026-08-10). Landed as specced; the spec below stands as written, and "As built" at the bottom records the handful of decisions it left open.
 
 ## Operating facts
 
@@ -156,3 +156,38 @@ Death does five things in one place in the original (`engine.cljs:307-316`): set
 - Stripped fns are *absent keys*, not `undefined` values — the round-trip test would catch it eventually; assert it directly at the kill site.
 - Player death sets `outcome: 'died'`; the shrine sets `outcome: 'descended'`.
 - A rest (`dir = null`) and a bump into a monster each advance `moves` by exactly 1; a walk into a wall advances it by 0.
+
+All of the above are in `src/game/engine/engine.test.ts`, plus a fuzz block that
+plays real generated levels rather than the hand-built fixtures — 400 random
+turns per seed, asserting the player stays on walkable ground, entity keys match
+their own ids, corpses never keep an `update` fn, and the state still round-trips
+JSON at the end. The five fidelity traps above were each checked by breaking the
+line and confirming the intended test — and only that test — went red.
+
+## As built
+
+Five decisions this doc left open, settled during implementation:
+
+1. **`moveTo` takes the `Rng` too** — `moveTo(state, id, newPos, rng)`. It runs
+   encounters, and encounters draw; only `takeTurn`'s signature was specced.
+2. **`state.ts` helpers are draft mutators**, `(draft, …) => void`, not
+   `state -> state` like their Clojure originals. Their callers are already
+   inside a `produce`, and the pure form would mean one `produce` per line of a
+   kill site the original wrote as a single threaded expression. Assignments of
+   plain entities into a draft go through Immer's `castDraft`, because `Draft<T>`
+   strips the `readonly` off `Pos` and a plain `Entity` is then not assignable.
+3. **`takeTurn` is a no-op once `outcome` is set.** Not in the original, which
+   left its key handler live after death and relied on the modal to cover the
+   board. Phase 6 will gate input as well; this makes the engine safe alone.
+4. **`updateMonsters` re-reads each entity from the threaded state** instead of
+   passing the pre-loop snapshot the original captured. Equivalent today —
+   nothing kills a monster during its own turn — and it stops a future overlay
+   entity from acting on a stale copy of itself.
+5. **The registry cycle is real and is load-bearing on function declarations.**
+   `movement.ts` imports the tables, `monsters.ts` imports `movement.ts`, so the
+   graph is cyclic. It is safe because function *declarations* are initialized at
+   instantiation, before any module body runs, and because every consumer reads
+   the tables from inside a function body. Switching a registered function to a
+   `const` arrow turns this into a temporal-dead-zone crash whose occurrence
+   depends on which module got imported first. Verified by importing each engine
+   module as the entry point; the note is repeated at the top of `registry.ts`.
