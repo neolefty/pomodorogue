@@ -39,9 +39,19 @@ export function makeBaseLevel(request: LevelRequest, content: ContentProvider): 
   // makeDiggerMap, and from the combat stream, which is derived in rng.ts.
   const rng = makeRng('entities', seed)
 
-  const map = makeDiggerMap(seed, LEVEL_SIZE, LEVEL_SIZE)
+  const { map, roomTiles, corridorTiles, doorTiles } = makeDiggerMap(seed, LEVEL_SIZE, LEVEL_SIZE)
+  // Spawns go on floor only — never in a wall, and never in a doorway. The
+  // doorways have to be subtracted explicitly: they are dug and outside every
+  // room rect, so `corridorTiles` contains all of them. Leaving them in parks
+  // monsters on the `occupy` layer in a room's only exit, which
+  // `makeMonsterPassable` then treats as blocked for every other monster —
+  // stranding whatever is behind it for the rest of the level.
+  const spawnTiles = new Set([...roomTiles, ...corridorTiles])
+  for (const index of doorTiles) spawnTiles.delete(index)
+
   const { entities, nextEntityId } = makeEntities(
     map,
+    spawnTiles,
     request,
     content,
     rng,

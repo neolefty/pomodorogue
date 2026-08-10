@@ -199,3 +199,7 @@ Five decisions this doc left open, settled during implementation:
    `const` arrow turns this into a temporal-dead-zone crash whose occurrence
    depends on which module got imported first. Verified by importing each engine
    module as the entry point; the note is repeated at the top of `registry.ts`.
+   *(Gone in phase 5.5 §1, along with `registry.ts` itself. The cycle existed
+   only because the tables were a hub between `movement.ts` and `monsters.ts`;
+   with the `kind` switch the graph is acyclic, so there is no ordering
+   constraint left to observe and no way to reintroduce the crash.)*

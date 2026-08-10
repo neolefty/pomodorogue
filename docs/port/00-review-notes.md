@@ -136,6 +136,13 @@ than usual:
 - `floorTiles` contains walls (naming inherited from the original; walls are
   looked up in it and rejected by the allowed-set check). Right call to keep
   during the port for side-by-side reading; rename to `tiles`/`tileMap` after.
+  Still true after phase 5.5 §3 made it a flat `Tile[]` — the representation
+  changed, the misleading name did not, and renaming it mid-port would still
+  break side-by-side reading against the original.
+- No `TILE` code → name table. Phase 5.5 §3 declined to add one on YAGNI
+  grounds: `TILE.wall` reads fine at a call site, and nothing yet needs to print
+  a tile. If phase 6's tile→class mapping or a debug overlay wants one, that is
+  the moment to add it, not before.
 - Phase 6: keep the tile-type→sprite mapping (floor/wall/door) in one visible
   place, not buried in cell JSX — level themes will eventually want tile
   sprites to come from level data.
@@ -195,3 +202,73 @@ only the decisions, so future sessions know they were deliberate. Tree green at
    05 (kill-summary before skull swap, combatant recording rules, `moved`
    semantics, `delete` not `undefined`, corpse `drop` cleared as a deliberate
    divergence, Immer-draft rules for `entitiesByPos`).
+
+---
+
+# Third pass — review of the phase 5.5 diff (2026-08-10)
+
+A review of the uncommitted 5.5 work turned up ten items. Three were fixed on
+the spot, in the same commit as this note; the rest are triaged below so the
+next session does not re-find them. Tree green at 103 tests.
+
+## Fixed now
+
+1. **Entities spawned in doorways.** `makeDiggerMap` builds `corridorTiles` as
+   "everything dug that is not inside a room", which *includes every door* —
+   so the spawn set was wrong despite a comment promising the opposite. 13 of
+   the first 40 seeds put an entity on a door. This mattered for play, not just
+   tidiness: an entity on the `occupy` layer in a room's only exit reads as
+   blocked to `makeMonsterPassable`, so a monster parked there strands
+   everything behind it for the level, silently flattening the difficulty
+   curve. `DiggerMap` now returns `doorTiles` and `makeBaseLevel` subtracts it.
+   Pinned by a 40-seed sweep in `generator.test.ts`.
+2. **A free action cleared the health bars.** `resetCombatList` ran before
+   `moveTo`, so bumping a wall — explicitly a non-turn — wiped the bars the
+   player reads to decide fight-or-flee. The clear still has to happen up front
+   (step 2 records *this* turn's fighters), so the previous list is restored
+   when `moved` comes back false.
+3. **`current()` on entities added mid-`produce`.** `detach` threw
+   `[Immer] 'current' expects a draft` for any entity assigned into the draft
+   during the same `produce`, because Immer only drafts what it read from the
+   base. Latent — nothing gives the player two actions in one turn today — but
+   the guard was accidental rather than stated. `detach` moved to `state.ts`
+   with an `isDraft` guard; `combat.ts`'s two `summarize(current(…))` calls
+   dropped the snapshot entirely (`summarize` copies two scalars on the spot),
+   and its `current(me.drop)` now routes through `detach`.
+
+## Open, with a home
+
+4. **Monster pathfinding runs before the activation gate.** Specced as "Step 0"
+   in [06-ui.md](06-ui.md) — it becomes visible when phase 6 puts `takeTurn`
+   inside a keypress handler. Read that section before touching it: the obvious
+   early-out is *not* a drop-in, because `findPath` returns `[]` for an
+   unreachable monster and `0 < activation` passes the gate (~17% of
+   monster-turns measured).
+5. **`updateMonsters` keeps running after the player dies.** No `draft.outcome`
+   check in the loop, so monsters later in the list still take their turn, and
+   `moveTo`'s corpse guard lets them step onto the body. Only affects the
+   frozen death frame — which is exactly what phase 6 renders, phase 7 persists
+   and phase 8 screenshots, so fix it before the tombstone work.
+6. **The shrine-reaching move is not counted.** `takeTurn` returns on
+   `draft.outcome` before `draft.moves += 1`, so a cleared level reports one
+   fewer move than a death does. Invisible until phase 8 builds the share
+   string; fix it there, and check the two outcomes agree.
+7. **Collision markers and smoke are never removed engine-side.** Removal lives
+   only in phase 6's `animationend` handler, so a headless driver accumulates
+   them (6 in 32 turns, measured) and every one is re-scanned by `moveTo` and
+   `makeMonsterPassable` on each move. Fine in a foreground tab; a real leak for
+   phase 9's server sim. Decide there whether the engine should expire them by
+   age instead.
+
+## Open, cosmetic
+
+8. `engine/index.ts` re-exports `moveTo` / `updateMonsters`, which 5.5 §6 turned
+   into draft mutators no caller can use — already scheduled as phase 6's first
+   task.
+9. `combat.ts` imports `makeCollisionMarker` from `generator/entities.ts`,
+   coupling play-time code to generation. A leaf `src/game/effects.ts` holding
+   it and `makeSmokeJuice` untangles it; worth doing before phase 9 splits the
+   two.
+10. The `(x, y) => canPassTile(map, [x, y])` closure is written out in seven
+    places and allocates a throwaway tuple per A* probe. A `tilePassable(map)`
+    helper in `grid.ts` removes both.

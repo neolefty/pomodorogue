@@ -15,12 +15,19 @@
 import type { ContentProvider, ItemTemplate } from '../content/types.ts'
 import { allocId } from '../entities.ts'
 import type { PassableFn, RoomPath } from '../grid.ts'
-import { canPassTile, findPath, posToDifficulty, roomCenter, tilesForRoom, withoutPos } from '../grid.ts'
-import type { Pos, PosKey, PosMap } from '../pos.ts'
-import { keyOf, parsePos, posKeys } from '../pos.ts'
+import {
+  canPassTile,
+  findPath,
+  posOfIndex,
+  posToDifficulty,
+  roomCenter,
+  roomTileIndices,
+  tileIndex,
+} from '../grid.ts'
+import type { Pos } from '../pos.ts'
 import type { Rng } from '../rng.ts'
 import { SPRITES } from '../sprites.ts'
-import type { Entity, EntityId, GameMap, LevelRequest, TileType } from '../types.ts'
+import type { Entity, EntityId, GameMap, LevelRequest, Room } from '../types.ts'
 import { PLAYER_ID } from '../types.ts'
 
 /** The player's starting XP, which doubles as their maximum damage. */
@@ -34,8 +41,11 @@ const MONSTER_DROP_CHANCE = 0.5
 
 interface Builder {
   entities: Record<EntityId, Entity>
-  freeTiles: PosMap<TileType>
+  /** Tile indices still free to stand on. See {@link takeFreeTile}. */
+  freeTiles: Set<number>
   nextEntityId: number
+  /** The map's dimensions, for converting an index back to a `Pos`. */
+  size: Pos
 }
 
 /** Everything a placement function reads but never changes. */
@@ -98,30 +108,45 @@ function makeItemEntity(template: ItemTemplate, id: EntityId, pos: Pos): Entity 
     sprite: template.sprite,
     pos,
     layer: 'floor',
+    kind: template.kind,
     value: template.value,
-    fns: { encounter: template.encounter },
     ...(template.dmg !== undefined ? { dmg: template.dmg } : {}),
     ...(template.armour !== undefined ? { armour: template.armour } : {}),
   }
 }
 
-const takeFreeTile = (b: Builder, rng: Rng): PosKey => {
-  const key = rng.pickPos(b.freeTiles)
-  b.freeTiles = withoutPos(b.freeTiles, key)
-  return key
+/**
+ * Removes and returns one uniformly-chosen free tile index.
+ *
+ * A `Set` rather than an array: removing a *named* tile (the shrine's square,
+ * each cover's) and the membership test in `freeTilesInRoom` are both O(1) on
+ * it, where an array would need `indexOf`. Walking to a random offset ~22 times
+ * per level is nothing against that. Set iteration follows insertion order and
+ * deletes do not disturb it, so this stays reproducible.
+ */
+function takeFreeTile(b: Builder, rng: Rng): number {
+  const n = rng.int(b.freeTiles.size)
+  let i = 0
+  for (const tile of b.freeTiles) {
+    if (i++ === n) {
+      b.freeTiles.delete(tile)
+      return tile
+    }
+  }
+  throw new Error('takeFreeTile: no free tiles left')
 }
 
 function placePlayer(b: Builder, rng: Rng): Entity {
-  const pos = parsePos(takeFreeTile(b, rng))
+  const pos = posOfIndex(b.size, takeFreeTile(b, rng))
   const player: Entity = {
     id: PLAYER_ID,
     name: 'you',
     sprite: SPRITES.elf,
     pos,
     layer: 'occupy',
-    stats: { hp: [10, 10], xp: PLAYER_XP, hpInc: 0 },
+    kind: 'player',
+    stats: { hp: { cur: 10, max: 10 }, xp: PLAYER_XP, hpInc: 0 },
     inventory: [],
-    fns: { encounter: 'combat', passable: 'playerPassable' },
   }
   b.entities[PLAYER_ID] = player
   return player
@@ -138,13 +163,13 @@ function placeShrine(b: Builder, g: Placement): void {
     sprite: SPRITES['shinto-shrine'],
     pos,
     layer: 'occupy',
-    fns: { encounter: 'finishLevel' },
+    kind: 'shrine',
   }
-  b.freeTiles = withoutPos(b.freeTiles, keyOf(pos))
+  b.freeTiles.delete(tileIndex(b.size, pos[0], pos[1]))
 }
 
-const freeTilesInRoom = (room: RoomPath['room'], freeTiles: PosMap<TileType>): PosKey[] =>
-  posKeys(tilesForRoom(room)).filter((key) => freeTiles[key] !== undefined)
+const freeTilesInRoom = (room: Room, b: Builder): number[] =>
+  roomTileIndices(room, b.size).filter((index) => b.freeTiles.has(index))
 
 /**
  * An item hidden under a rock, plant or block of wood, somewhere in a room.
@@ -158,12 +183,12 @@ function placeCoveredItem(b: Builder, g: Placement): void {
   // The original picked any room and would crash if the room happened to be
   // full. Only rooms with a free tile are considered here; the alternative is a
   // seed that can never produce a playable level.
-  const candidates = g.roomPaths.filter((rp) => freeTilesInRoom(rp.room, b.freeTiles).length > 0)
+  const candidates = g.roomPaths.filter((rp) => freeTilesInRoom(rp.room, b).length > 0)
   if (candidates.length === 0) return
 
   const { room } = g.rng.pick(candidates)
-  const key = g.rng.pick(freeTilesInRoom(room, b.freeTiles))
-  const pos = parsePos(key)
+  const tile = g.rng.pick(freeTilesInRoom(room, b))
+  const pos = posOfIndex(b.size, tile)
   const difficulty =
     posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable) * ITEM_DIFFICULTY_SCALE
 
@@ -181,11 +206,11 @@ function placeCoveredItem(b: Builder, g: Placement): void {
     sprite: cover.sprite,
     pos,
     layer: 'floor',
-    fns: { encounter: 'uncoverItem' },
+    kind: 'cover',
     drop: item,
     juice,
   }
-  b.freeTiles = withoutPos(b.freeTiles, key)
+  b.freeTiles.delete(tile)
 }
 
 /**
@@ -222,9 +247,8 @@ function pickMonsterIndex(rng: Rng, difficulty: number, tableSize: number): numb
 
 function placeMonster(b: Builder, g: Placement): void {
   // The original threw on a full map; skipping is divergence 2 in the port doc.
-  if (posKeys(b.freeTiles).length === 0) return
-  const key = takeFreeTile(b, g.rng)
-  const pos = parsePos(key)
+  if (b.freeTiles.size === 0) return
+  const pos = posOfIndex(b.size, takeFreeTile(b, g.rng))
   const difficulty = Math.min(
     posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable) * MONSTER_DIFFICULTY_SCALE,
     1,
@@ -244,12 +268,16 @@ function placeMonster(b: Builder, g: Placement): void {
     sprite: template.sprite,
     pos,
     layer: 'occupy',
+    kind: 'monster',
     activation: template.activation,
-    // A fresh HP pair per monster; sharing the template's array would give every
-    // rat on the level the same health.
-    stats: { hp: [template.stats.hp[0], template.stats.hp[1]], xp: template.stats.xp, hpInc: 0 },
+    // A fresh Hp per monster; sharing the template's object would give every rat
+    // on the level the same health.
+    stats: {
+      hp: { cur: template.stats.hp.cur, max: template.stats.hp.max },
+      xp: template.stats.xp,
+      hpInc: 0,
+    },
     drop,
-    fns: { encounter: 'combat', update: 'chasePlayer', passable: 'monsterPassable' },
   }
 }
 
@@ -281,9 +309,15 @@ export interface GeneratedEntities {
 /**
  * Populates a map: player first (everything else is positioned relative to
  * them), then the shrine, the covered items, and finally the monsters.
+ *
+ * `spawnTiles` is where entities may stand — room and corridor floor, from
+ * `makeDiggerMap`. It is a parameter rather than a field on `GameMap` because
+ * play never reads it and phase 7 would otherwise persist it; see §2 of
+ * docs/port/05a-simplify.md.
  */
 export function makeEntities(
   map: GameMap,
+  spawnTiles: ReadonlySet<number>,
   request: LevelRequest,
   content: ContentProvider,
   rng: Rng,
@@ -292,16 +326,16 @@ export function makeEntities(
 ): GeneratedEntities {
   const b: Builder = {
     entities: {},
-    // Spawns go on floor only — never in a doorway, never in a wall.
-    freeTiles: { ...map.roomTiles, ...map.corridorTiles },
+    freeTiles: new Set(spawnTiles),
     nextEntityId: 0,
+    size: map.size,
   }
-  if (posKeys(b.freeTiles).length === 0) {
+  if (b.freeTiles.size === 0) {
     throw new Error('makeEntities: the map has no floor to stand on')
   }
 
   const player = placePlayer(b, rng)
-  const passable: PassableFn = (x, y) => canPassTile(map.floorTiles, [x, y])
+  const passable: PassableFn = (x, y) => canPassTile(map, [x, y])
   const roomPaths: RoomPath[] = map.rooms
     .map((room) => {
       const centerPos = roomCenter(room)

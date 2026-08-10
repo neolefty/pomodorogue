@@ -11,13 +11,13 @@ import type { LevelRequest } from '../types.ts'
 import type { ContentProvider, CoverTemplate, ItemTemplate, MonsterTemplate } from './types.ts'
 
 export const FORAGE_ITEMS: readonly ItemTemplate[] = [
-  { name: 'chestnut', sprite: SPRITES.chestnut, encounter: 'addItemToInventory', value: 1 },
-  { name: 'mushroom', sprite: SPRITES.mushroom, encounter: 'addItemToInventory', value: 2 },
-  { name: 'gem-stone', sprite: SPRITES['gem-stone'], encounter: 'addItemToInventory', value: 8 },
-  { name: 'health', sprite: SPRITES['tumbler-glass'], encounter: 'increaseHp', value: 2 },
-  { name: 'shield', sprite: SPRITES.shield, encounter: 'addItemToInventory', armour: 1, value: 3 },
-  { name: 'dagger', sprite: SPRITES.dagger, encounter: 'addItemToInventory', dmg: 1, value: 3 },
-  { name: 'axe', sprite: SPRITES.axe, encounter: 'addItemToInventory', dmg: 2, value: 4 },
+  { name: 'chestnut', sprite: SPRITES.chestnut, kind: 'item', value: 1 },
+  { name: 'mushroom', sprite: SPRITES.mushroom, kind: 'item', value: 2 },
+  { name: 'gem-stone', sprite: SPRITES['gem-stone'], kind: 'item', value: 8 },
+  { name: 'health', sprite: SPRITES['tumbler-glass'], kind: 'potion', value: 2 },
+  { name: 'shield', sprite: SPRITES.shield, kind: 'item', armour: 1, value: 3 },
+  { name: 'dagger', sprite: SPRITES.dagger, kind: 'item', dmg: 1, value: 3 },
+  { name: 'axe', sprite: SPRITES.axe, kind: 'item', dmg: 2, value: 4 },
 ]
 
 export const ITEM_COVERS: readonly CoverTemplate[] = [
@@ -28,17 +28,17 @@ export const ITEM_COVERS: readonly CoverTemplate[] = [
 
 /** Easiest first — see the ordering note on {@link ContentProvider.monsters}. */
 export const MONSTER_TABLE: readonly MonsterTemplate[] = [
-  { name: 'the rat', sprite: SPRITES.rat, activation: 3, stats: { xp: 1, hp: [2, 2] } },
-  { name: 'the bat', sprite: SPRITES.bat, activation: 10, stats: { xp: 2, hp: [3, 3] } },
-  { name: 'the ghost', sprite: SPRITES.ghost, activation: 10, stats: { xp: 3, hp: [3, 3] } },
-  { name: 'the boar', sprite: SPRITES.boar, activation: 15, stats: { xp: 3, hp: [4, 4] } },
-  { name: 'the wolf', sprite: SPRITES.wolf, activation: 20, stats: { xp: 4, hp: [5, 5] } },
-  { name: 'the ogre', sprite: SPRITES.ogre, activation: 10, stats: { xp: 4, hp: [7, 7] } },
-  { name: 'the zombie', sprite: SPRITES.zombie, activation: 5, stats: { xp: 5, hp: [9, 9] } },
-  { name: 'the vampire', sprite: SPRITES.vampire, activation: 15, stats: { xp: 6, hp: [8, 8] } },
-  { name: 'the genie', sprite: SPRITES.genie, activation: 20, stats: { xp: 6, hp: [10, 10] } },
-  { name: 'the dragon', sprite: SPRITES.dragon, activation: 10, stats: { xp: 8, hp: [15, 15] } },
-  { name: 'the t-rex', sprite: SPRITES['t-rex'], activation: 15, stats: { xp: 10, hp: [12, 12] } },
+  { name: 'the rat', sprite: SPRITES.rat, activation: 3, stats: { xp: 1, hp: { cur: 2, max: 2 } } },
+  { name: 'the bat', sprite: SPRITES.bat, activation: 10, stats: { xp: 2, hp: { cur: 3, max: 3 } } },
+  { name: 'the ghost', sprite: SPRITES.ghost, activation: 10, stats: { xp: 3, hp: { cur: 3, max: 3 } } },
+  { name: 'the boar', sprite: SPRITES.boar, activation: 15, stats: { xp: 3, hp: { cur: 4, max: 4 } } },
+  { name: 'the wolf', sprite: SPRITES.wolf, activation: 20, stats: { xp: 4, hp: { cur: 5, max: 5 } } },
+  { name: 'the ogre', sprite: SPRITES.ogre, activation: 10, stats: { xp: 4, hp: { cur: 7, max: 7 } } },
+  { name: 'the zombie', sprite: SPRITES.zombie, activation: 5, stats: { xp: 5, hp: { cur: 9, max: 9 } } },
+  { name: 'the vampire', sprite: SPRITES.vampire, activation: 15, stats: { xp: 6, hp: { cur: 8, max: 8 } } },
+  { name: 'the genie', sprite: SPRITES.genie, activation: 20, stats: { xp: 6, hp: { cur: 10, max: 10 } } },
+  { name: 'the dragon', sprite: SPRITES.dragon, activation: 10, stats: { xp: 8, hp: { cur: 15, max: 15 } } },
+  { name: 'the t-rex', sprite: SPRITES['t-rex'], activation: 15, stats: { xp: 10, hp: { cur: 12, max: 12 } } },
 ]
 
 /**

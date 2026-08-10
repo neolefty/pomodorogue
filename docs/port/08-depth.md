@@ -10,13 +10,15 @@
 
 ## Stairs replace the shrine
 
-`placeShrine` (`src/game/generator/entities.ts`, ports `make-shrine`) places the shrine at the center of the furthest room by path length — which is already exactly where a down-staircase belongs. Keep the placement logic verbatim, change the sprite (`shinto-shrine` → `down-arrow` or similar; add it to `SPRITE_NAMES` and re-run `pnpm gen:sprites`) and swap the encounter fn. It is module-private, called from `makeEntities`; it stays private — nothing in this phase needs to widen the generator's surface.
+`placeShrine` (`src/game/generator/entities.ts`, ports `make-shrine`) places the shrine at the center of the furthest room by path length — which is already exactly where a down-staircase belongs. Keep the placement logic verbatim, change the sprite (`shinto-shrine` → `down-arrow` or similar; add it to `SPRITE_NAMES` and re-run `pnpm gen:sprites`) and change the behavior. Post-5.5 there is no encounter fn to swap: entity behavior is `entity.kind` resolved by exhaustive `switch`es, so rename the `'shrine'` member of `EntityKind` to `'stairs'` (or add `'stairs'` alongside, if the shrine survives as the "bank your run" option — open question below) and point its case at `descend`. The exhaustiveness check works *for* this phase — the compiler lists every dispatch site the new kind must handle. It is module-private, called from `makeEntities`; it stays private — nothing in this phase needs to widen the generator's surface.
+
+The compiler cannot see the levels already sitting in localStorage, though: one saved before this rename carries `kind: 'shrine'`, which the new `switch` throws on. **Bump the persisted `schemaVersion`** in the same change — see "Version the save; never migrate it" in [07-pomodoro.md](07-pomodoro.md) — so those levels are discarded on load instead of crashing a turn.
 
 ## What carries between levels
 
 ```ts
 type PlayerCarry = {
-  stats: Stats            // hp [current, max], xp, and the regen counter all persist
+  stats: Stats            // hp { cur, max }, xp, and the regen counter all persist
   inventory: Entity[]     // there is no separate Item type — inventory entries are entities
 }
 ```
@@ -29,7 +31,7 @@ makeLevel(request, content, carry?) =
         : makeBaseLevel(request, content)
 ```
 
-where `applyCarry` overwrites the freshly-placed player's `stats` and `inventory` and touches nothing else — position comes from the new level, no geometry changes, no RNG. `placePlayer` keeps building the fresh `hp: [10,10]`, `xp: 3` player unconditionally. (This is a miniature of the overlay pass PLAN.md describes; if a real overlay lands later, carry becomes its first tenant.)
+where `applyCarry` overwrites the freshly-placed player's `stats` and `inventory` and touches nothing else — position comes from the new level, no geometry changes, no RNG. `placePlayer` keeps building the fresh `hp: { cur: 10, max: 10 }`, `xp: 3` player unconditionally. (This is a miniature of the overlay pass PLAN.md describes; if a real overlay lands later, carry becomes its first tenant.)
 
 Carried inventory entities keep a stale `pos` from the level where they were picked up. Nothing reads inventory positions — same as the original — so leave them alone rather than inventing a scrub step.
 

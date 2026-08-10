@@ -34,6 +34,8 @@ These are working documents for the port, not long-term reference. Delete `docs/
 
 `GameState` holds exactly one level. Run-scoped things — carried inventory, depth, lifetime statistics — live outside it, in the run state that phase 7 introduces.
 
+**Tiles** are numeric codes (`TILE.room`, `TILE.wall`, …) in a flat row-major array on `GameMap.floorTiles`, addressed `y * w + x` and read through `tileAt`. **Entities** are bucketed by a `"x,y"` string key in a per-turn index. The two are deliberately independent; see §3 of [05a-simplify.md](docs/port/05a-simplify.md).
+
 ---
 
 ## Phases
@@ -144,7 +146,7 @@ Answer these when the phase that needs them comes up. Don't block earlier phases
 2. **Can you bank breaks?** If you skip two cycles, do you get two levels? Default: **no**, the gate is simply "is now past `nextPlayableAt`". Needed by phase 7.
 3. **How does difficulty scale with depth?** The original scales within a level by path distance from the player's start (`pos-to-difficulty`). Depth needs to shift the monster table index too. Needed by phase 8.
 4. **Does the run end at some depth, or go forever?** Needed by phase 8.
-5. **Do tile maps stay `PosMap` (`"x,y"`-keyed objects), or become flat arrays?** The string keys are a faithful stand-in for ClojureScript's `[x y]` vector keys, but the grid is a fixed 32×32 and an array is JSON-serializable too — at roughly 1 byte per tile in the save file instead of ~15, and without the branded-key helpers. Against: it is the largest diff in phase 5.5 and buys clarity plus save size, not capability. **Needed by phase 5.5** — and only then, because phase 6 doubles the call sites. Declining is a fine answer; leaving it open is not. See §3 of [05a-simplify.md](docs/port/05a-simplify.md).
+5. ~~**Do tile maps stay `PosMap` (`"x,y"`-keyed objects), or become flat arrays?**~~ **Answered 2026-08-10: flat arrays.** `GameMap.floorTiles` is a `Tile[]` of numeric codes indexed `y * w + x`; the branded `PosKey` and its helpers are gone, and the entity index keeps string keys. With §2 in the same pass this took a serialized `GameState` from 19,828 to 11,827 bytes. See the decision note at §3 of [05a-simplify.md](docs/port/05a-simplify.md), which also records the two things that turned out differently from the sketch.
 
 ---
 
@@ -157,8 +159,8 @@ Update this as phases land.
 - [x] Phase 3 — Core
 - [x] Phase 4 — Generator
 - [x] Phase 5 — Engine
-- [ ] Phase 5.5 — Simplification ← **next**
-- [ ] Phase 6 — UI
+- [x] Phase 5.5 — Simplification
+- [ ] Phase 6 — UI ← **next**
 - [ ] Phase 7 — Pomodoro
 - [ ] Phase 8 — Depth
 - [ ] Phase 9 — Server (deferred)

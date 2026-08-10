@@ -5,7 +5,8 @@
  * Input handling itself is not here — reading keys is the UI's job (phase 6).
  * What this file owns is the order things happen in once a direction is known.
  */
-import { produce } from 'immer'
+import { castDraft, produce } from 'immer'
+import type { Draft } from 'immer'
 import { getPlayer } from '../entities.ts'
 import type { Rng } from '../rng.ts'
 import type { GameState } from '../types.ts'
@@ -24,22 +25,17 @@ export const REJUVENATION_RATE = 100
  * At full health the counter is *held at zero* rather than left where it was, so
  * healing up and taking a fresh wound restarts the climb (`engine.cljs:112-125`).
  */
-export function restorePlayerHealth(state: GameState): GameState {
-  return produce(state, restoreHealth)
-}
-
-/** The draft-side body, so `takeTurn` can fold it into its own produce pass. */
-function restoreHealth(draft: GameState): void {
+function restoreHealth(draft: Draft<GameState>): void {
   const stats = draft.entities[PLAYER_ID]?.stats
   if (!stats) return
-  if (stats.hp[0] >= stats.hp[1]) {
+  if (stats.hp.cur >= stats.hp.max) {
     stats.hpInc = 0
     return
   }
   const hpInc = stats.hpInc + 1
   if (hpInc >= REJUVENATION_RATE) {
     stats.hpInc = 0
-    stats.hp[0] += 1
+    stats.hp.cur += 1
   } else {
     stats.hpInc = hpInc
   }
@@ -56,12 +52,19 @@ function restoreHealth(draft: GameState): void {
  *    the move, regenerate, and run the monsters.
  *
  * Step 3's guard is why walking into a wall is free: `moveTo` leaves `moved`
- * false there, so the monsters never get their go.
+ * false there, so the monsters never get their go — and step 1 is put back, so
+ * a free action does not cost the player the health bars they are reading
+ * either. The clear has to happen up front regardless, because step 2 is what
+ * records *this* turn's fighters.
  *
  * The `Rng` is the caller's — created from ambient entropy when the level starts
  * and held for its lifetime, or a fixed-seed one in tests. Combat randomness is
  * deliberately not derived from the level seed; see "Seeds control the world,
  * not the story" in PLAN.md.
+ *
+ * **This is the engine's only `produce`.** Everything below it mutates the
+ * draft. The external contract is unchanged and is what the UI holds: frozen
+ * state in, frozen state out. See §6 of docs/port/05a-simplify.md.
  */
 export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState {
   // Not in the original, which left the key handler live after death and relied
@@ -73,15 +76,20 @@ export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState
   if (!player) return state
   const newPos = dir ? posInDir(player.pos, dir) : null
 
-  let next = produce(state, resetCombatList)
-  next = moveTo(next, PLAYER_ID, newPos, rng)
-
-  if (next.outcome || !next.entities[PLAYER_ID]?.moved) return next
-
-  // One produce pass for the whole between-moves bookkeeping.
-  next = produce(next, (draft) => {
+  return produce(state, (draft) => {
+    resetCombatList(draft)
+    moveTo(draft, PLAYER_ID, newPos, rng)
+    // `moved` is false on exactly one path — the final `else` of `moveTo`, where
+    // the target is impassable and nothing there wanted interacting with. That
+    // is the free action, so nothing about the turn happened, health bars
+    // included.
+    if (!draft.entities[PLAYER_ID]?.moved) {
+      draft.combatants = castDraft(state.combatants)
+      return
+    }
+    if (draft.outcome) return
     draft.moves += 1
     restoreHealth(draft)
+    updateMonsters(draft, rng)
   })
-  return updateMonsters(next, rng)
 }

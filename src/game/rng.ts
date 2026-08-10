@@ -10,8 +10,6 @@
  * See docs/port/03-core.md.
  */
 import { RNG as RotRng } from 'rot-js'
-import type { PosKey, PosMap } from './pos.ts'
-import { posKeys } from './pos.ts'
 import type { LevelRequest } from './types.ts'
 
 export interface Rng {
@@ -23,12 +21,8 @@ export interface Rng {
   range(lo: number, hi: number): number
   /** Uniform choice. Throws on an empty array — an empty pick is always a bug. */
   pick<T>(items: readonly T[]): T
-  /** Uniform choice among the keys of a position map. */
-  pickPos<T>(m: PosMap<T>): PosKey
   /** Choice weighted by `weight(item)`. Items with weight <= 0 are never picked. */
   weighted<T>(items: readonly T[], weight: (item: T) => number): T
-  /** An independent stream at the current state, so consuming one can't disturb the other. */
-  clone(): Rng
 }
 
 /**
@@ -68,11 +62,6 @@ function wrap(rot: ReturnType<typeof RotRng.clone>): Rng {
       if (items.length === 0) throw new Error('rng.pick: empty array')
       return items[Math.floor(rot.getUniform() * items.length)]!
     },
-    pickPos<T>(m: PosMap<T>): PosKey {
-      const keys = posKeys(m)
-      if (keys.length === 0) throw new Error('rng.pickPos: empty map')
-      return keys[Math.floor(rot.getUniform() * keys.length)]!
-    },
     weighted<T>(items: readonly T[], weight: (item: T) => number): T {
       if (items.length === 0) throw new Error('rng.weighted: empty array')
       const weights = items.map((i) => Math.max(0, weight(i)))
@@ -85,7 +74,6 @@ function wrap(rot: ReturnType<typeof RotRng.clone>): Rng {
       }
       return items[items.length - 1]!
     },
-    clone: () => wrap(rot.clone()),
   }
 }
 

@@ -6,14 +6,22 @@
  * here — it is simply the monster's own move, later in the same turn, bumping
  * back into the player.
  */
-import { produce } from 'immer'
+import type { Draft } from 'immer'
 import { allocId } from '../entities.ts'
 import { makeCollisionMarker } from '../generator/entities.ts'
+import type { Pos } from '../pos.ts'
 import type { Rng } from '../rng.ts'
 import { SPRITES } from '../sprites.ts'
 import type { Entity, EntityId, GameState } from '../types.ts'
 import { PLAYER_ID } from '../types.ts'
-import { addEntity, addKilledBy, addToCombatList, checkForEndgame, summarize } from './state.ts'
+import {
+  addEntity,
+  addKilledBy,
+  addToCombatList,
+  checkForEndgame,
+  detach,
+  summarize,
+} from './state.ts'
 
 /** Weapons and armour apply just by being carried; there is nothing to equip. */
 export const getWeaponsDmg = (entity: Entity): number =>
@@ -41,16 +49,16 @@ const KILLS_PER_XP = 2
  * time and can only hurt you with a weapon. The rat really is harmless.
  */
 export function combat(
-  state: GameState,
+  draft: Draft<GameState>,
   theirId: EntityId,
   myId: EntityId,
   rng: Rng,
-): [boolean, GameState] {
-  const them = state.entities[theirId]
-  const me = state.entities[myId]
+): boolean {
+  const them = draft.entities[theirId]
+  const me = draft.entities[myId]
   // A target without stats has no hp to lose — without this guard the
   // `?? 0` fallbacks below would read it as killed by a zero-damage miss.
-  if (!them || !me || !me.stats) return [true, state]
+  if (!them || !me || !me.stats) return true
 
   const hit = rng.pick([0, 1, 1, 1, 1, 1])
   const hpHit = rng.int(them.stats?.xp ?? 0)
@@ -58,71 +66,78 @@ export function combat(
   const hpArmour = getArmourHp(me)
   const hpReduction = Math.max(0, (hpHit + hpWeapons - hpArmour) * hit)
 
-  const updatedHp = Math.max(0, me.stats.hp[0] - hpReduction)
+  const updatedHp = Math.max(0, me.stats.hp.cur - hpReduction)
   const killed = updatedHp === 0
 
-  // Built here, before the death block below swaps the sprite for a skull —
-  // otherwise every kill would be recorded as a skull (`engine.cljs:269`).
-  // Only a fatal exchange records either summary, so a miss allocates nothing.
+  // Both summaries are built here, before the death block below swaps the sprite
+  // for a skull — otherwise every kill would be recorded as a skull
+  // (`engine.cljs:269`). Only a fatal exchange records either, so a miss
+  // allocates nothing, and the snapshot only runs on a kill.
+  //
+  // Reading straight off the draft is safe even though `me.sprite` is
+  // reassigned a few lines down: `summarize` copies the two scalars it wants
+  // into a fresh object here and now, so the later write cannot reach it.
   const fatal = killed ? { victim: summarize(me), killer: summarize(them) } : null
 
-  const next = produce(state, (draft) => {
-    const meDraft = draft.entities[myId]
-    if (meDraft?.stats) meDraft.stats.hp[0] = updatedHp
+  // Values, captured before anything is written: the marker goes where the
+  // victim stood, and the log wants the names the fight started with.
+  const myPos: Pos = [me.pos[0], me.pos[1]]
+  const theirName = them.name
+  const myName = me.name
 
-    if (fatal && theirId === PLAYER_ID) {
-      const player = draft.entities[theirId]
-      if (player) {
-        const kills = (player.kills ??= [])
-        kills.push(fatal.victim)
-        if (kills.length % KILLS_PER_XP === 0 && player.stats) player.stats.xp += 1
-      }
-    }
+  me.stats.hp.cur = updatedHp
 
-    if (fatal) {
-      addKilledBy(draft, myId, fatal.killer)
-    } else {
-      // Only a survived exchange puts bars on screen; a fatal one records
-      // nothing (`engine.cljs:277-283`). Both are offered, and the helper drops
-      // the player.
-      addToCombatList(draft, theirId)
-      addToCombatList(draft, myId)
-    }
+  if (fatal && theirId === PLAYER_ID) {
+    const kills = (them.kills ??= [])
+    kills.push(fatal.victim)
+    if (kills.length % KILLS_PER_XP === 0 && them.stats) them.stats.xp += 1
+  }
 
-    if (hpReduction > 0) {
-      // allocId mutates nextEntityId, so it has to happen in here — it throws on
-      // the frozen post-produce state, by design.
-      addEntity(draft, makeCollisionMarker(allocId(draft), me.pos))
-    }
+  if (fatal) {
+    addKilledBy(draft, myId, fatal.killer)
+  } else {
+    // Only a survived exchange puts bars on screen; a fatal one records
+    // nothing (`engine.cljs:277-283`). Both are offered, and the helper drops
+    // the player.
+    addToCombatList(draft, theirId)
+    addToCombatList(draft, myId)
+  }
 
-    draft.log.push({
-      type: 'combat',
-      from: them.name,
-      to: me.name,
-      damage: hpReduction,
-      killed,
-    })
+  if (hpReduction > 0) {
+    addEntity(draft, makeCollisionMarker(allocId(draft), myPos))
+  }
 
-    if (killed && meDraft) {
-      meDraft.dead = true
-      meDraft.layer = 'floor'
-      meDraft.animation = null
-      meDraft.sprite = SPRITES['skull-and-crossbones']
-      // The pre-produce `drop`, whose pos followed the monster as it chased.
-      addEntity(draft, me.drop)
-      // Divergence from the original, deliberately: it left `drop` pointing at
-      // the now-live item, harmless there but here it double-counts in
-      // `countEntities` and doubles the object inside every phase-7 snapshot.
-      delete meDraft.drop
-      // `delete`, never `= undefined`: exactOptionalPropertyTypes rejects the
-      // assignment, and an undefined value would not survive the JSON round-trip.
-      if (meDraft.fns) {
-        delete meDraft.fns.update
-        delete meDraft.fns.encounter
-      }
-      checkForEndgame(draft)
-    }
+  draft.log.push({
+    type: 'combat',
+    from: theirName,
+    to: myName,
+    damage: hpReduction,
+    killed,
   })
 
-  return [true, next]
+  if (killed) {
+    me.dead = true
+    me.layer = 'floor'
+    me.animation = null
+    me.sprite = SPRITES['skull-and-crossbones']
+    // The loot, whose pos followed the monster as it chased. Lifted out and the
+    // slot cleared before it is re-homed, so it is never reachable from two
+    // places at once — see `detach` in state.ts.
+    //
+    // Clearing it is a deliberate divergence from the original, which left
+    // `drop` pointing at the now-live item: harmless there, but here it
+    // double-counts in `countEntities` and doubles the object inside every
+    // phase-7 snapshot.
+    const drop = me.drop ? detach(me.drop) : null
+    // `delete`, never `= undefined`: exactOptionalPropertyTypes rejects the
+    // assignment, and an undefined value would not survive the JSON round-trip.
+    delete me.drop
+    addEntity(draft, drop)
+    // Nothing strips behavior here any more. A corpse keeps its `kind` and is
+    // skipped on `dead` instead, at the two places that used to read the names
+    // this block deleted: `runEncounter`'s caller and `updateMonsters`.
+    checkForEndgame(draft)
+  }
+
+  return true
 }

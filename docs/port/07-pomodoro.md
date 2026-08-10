@@ -39,6 +39,46 @@ change underneath phase 8.
 
 `GameState` is already JSON-round-trippable (enforced by a test from phase 3), so `Level` persists directly. That is what lets an in-progress level survive a reload — which matters, because a 5-minute break is exactly long enough for someone to accidentally close the tab.
 
+## Version the save; never migrate it
+
+*(Added 2026-08-10 in the cross-phase review after 5.5 landed.)* Round-trippable
+is not the same property as compatible-with-yesterday's-build, and the sentence
+above is easy to read as if it were. A `Level` written by one deploy and read by
+the next is a different problem, and phase 5.5 sharpened it in three ways at
+once:
+
+- **Entity kinds are persisted strings, and an unknown one throws.**
+  `runEncounter`'s `default` branch (`engine/movement.ts`) is a `never`
+  assignment plus a `throw` — exhaustive at compile time, which says nothing
+  about JSON from an older build. [08-depth.md](08-depth.md) now commits to
+  renaming `'shrine'` → `'stairs'`, so a level saved before that deploy and
+  rehydrated after throws the moment the player steps on it — inside `takeTurn`,
+  the reducer the whole UI hangs off.
+- **Tile codes are numbers now** (`TILE` in `types.ts`). Renumbering them, or
+  inserting a code in the middle, silently reinterprets every saved tile: a wall
+  becomes a door and the level is quietly wrong. The old string tiles at least
+  failed loudly.
+- **`Stats.hp` changed shape**, `[cur, max]` → `{ cur, max }` (5.5 §5). An old
+  save's `hp: [10, 10]` deserializes to an object whose `cur` is `undefined`,
+  and the health bar renders `NaN` rather than erroring.
+
+**The fix is a version, and the response to a mismatch is to discard — never to
+migrate.** `Level` carries a `schemaVersion`; on load, anything that isn't the
+current value is dropped and the cycle starts fresh at the same depth, exactly
+as the level-cap expiry path already does. `Schedule` and `Run` are versioned
+too but survive: they are small, stable, and the expensive things to lose. A
+level is five minutes of play and the run is hours, so throwing the level away
+costs nearly nothing and buys never writing a migration.
+
+Bump `schemaVersion` when entity kinds change, when `TILE` codes change, or when
+`GameState`'s shape changes. Phase 8 will bump it for the stairs rename; say so
+there when it does.
+
+Leave the `throw` in `runEncounter` alone. Making it tolerant would hide a real
+bug during development, which is the case it exists for. The tolerance belongs
+at the load boundary, where the input is genuinely untrusted, not in the middle
+of a turn.
+
 ## The combat stream does not persist
 
 **Decision (final, 2026-08-09): combat randomness is entropy-seeded, so there

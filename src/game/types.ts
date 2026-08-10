@@ -3,16 +3,16 @@
  *
  * Hard constraint: **`GameState` must round-trip through JSON.** No `Map`,
  * `Set`, `Date`, or function values anywhere inside it. Behavior is referenced
- * by name and resolved through the registries in `engine/registry.ts` — the
- * same trick the original used (`lookup-fn`), for the same reason. Phase 7's
- * persistence depends on this; `types.test.ts` guards it.
+ * by name — an entity's {@link EntityKind} — and resolved by a `switch` in the
+ * engine, the same trick the original used (`lookup-fn`), for the same reason.
+ * Phase 7's persistence depends on this; `types.test.ts` guards it.
  *
  * Corollary: never assign `undefined` to a field. Either omit the key or use
  * `null`, because `JSON.stringify` drops keys whose value is `undefined` and
  * the round-trip would then differ. `exactOptionalPropertyTypes` in
  * tsconfig.json enforces this at compile time.
  */
-import type { Pos, PosMap } from './pos.ts'
+import type { Pos } from './pos.ts'
 import type { Sprite } from './sprites.ts'
 
 // ***** entities ***** //
@@ -28,8 +28,17 @@ export const PLAYER_ID = 'player'
  */
 export type Layer = 'floor' | 'between' | 'occupy' | 'above'
 
-/** `[current, max]`, kept as a pair because the health bar and share string both iterate it. */
-export type Hp = [current: number, max: number]
+/**
+ * Current and maximum health.
+ *
+ * A record, not the original's `[current max]` pair: the pair was a Clojure-ism,
+ * and `hp[0]` read worse than `hp.cur` at every one of its call sites. The
+ * health bar and share string iterate a two-element range either way.
+ */
+export interface Hp {
+  cur: number
+  max: number
+}
 
 export interface Stats {
   hp: Hp
@@ -61,29 +70,32 @@ export interface Animation {
 }
 
 /**
- * Names of behaviors, resolved through the registries in `engine/registry.ts`.
- * Declared here rather than in the engine so that `types.ts` stays dependency-
- * free; the registries assert exhaustiveness against these unions.
+ * What an entity *is*, which is the whole of what it does.
+ *
+ * Behavior is named by this one string rather than held as a function
+ * reference, so `GameState` survives `JSON.stringify` — the property phase 7's
+ * persistence rests on. The engine resolves it with an exhaustive `switch`
+ * (`engine/movement.ts`), so an unhandled kind is a compile error.
+ *
+ * Phase 5 spelled this out as three separate behavior names per entity
+ * (`fns.encounter`, `fns.update`, `fns.passable`) resolved through three lookup
+ * tables. They turned out to be fully determined by the kind — every monster
+ * carried the same three — so 5.5 collapsed them. See §1 of
+ * docs/port/05a-simplify.md.
+ *
+ * Declared here rather than in the engine so `types.ts` stays dependency-free;
+ * `content/types.ts` and the generator both consume it.
  */
-export type EncounterFnName =
-  | 'combat'
-  | 'increaseHp'
-  | 'addItemToInventory'
-  | 'uncoverItem'
-  | 'finishLevel'
-
-export type UpdateFnName = 'chasePlayer'
-
-export type PassableFnName = 'playerPassable' | 'monsterPassable'
-
-export interface EntityFns {
-  /** Runs when something moves onto this entity. */
-  encounter?: EncounterFnName
-  /** Runs once per turn, after the player moves. */
-  update?: UpdateFnName
-  /** Builds this entity's movement predicate. */
-  passable?: PassableFnName
-}
+export type EntityKind =
+  | 'player'
+  | 'monster'
+  | 'shrine'
+  /** Hides an item until the player steps on it. */
+  | 'cover'
+  /** Goes into the inventory. */
+  | 'item'
+  /** Drunk on the spot. */
+  | 'potion'
 
 /**
  * One loose record covering the player, monsters, items and covers alike —
@@ -97,11 +109,17 @@ export interface Entity {
   pos: Pos
   layer: Layer
 
+  /**
+   * What this entity is, and so what it does. Absent on pure visual effects —
+   * the smoke puff and the collision starburst — which have no behavior at all,
+   * exactly as they carried no `fns` before 5.5.
+   */
+  kind?: EntityKind
+
   /** Present on the player and monsters; absent on items. */
   stats?: Stats
   /** Present on the player only. Weapons and armour in here apply automatically. */
   inventory?: Entity[]
-  fns?: EntityFns
 
   /** Weapon damage, summed across inventory. */
   dmg?: number
@@ -129,13 +147,26 @@ export interface Entity {
 // ***** map ***** //
 
 /**
- * What occupies a tile. `floorTiles` holds only these four; anything absent is
- * solid rock and impassable. Walls are the shell dug around rooms and corridors.
+ * What occupies a tile. Walls are the shell dug around rooms and corridors.
+ *
+ * Numeric codes rather than strings because the tile map is a flat array that
+ * phase 7 writes to localStorage every 25 minutes: `[0,0,1,1,2,...]` is about a
+ * byte per tile where `{"3,4":"room",...}` was about fifteen, across ~1000
+ * tiles. Read them through `TILE`, never as bare numbers.
  */
-export type TileType = 'room' | 'corridor' | 'door' | 'wall'
+export const TILE = {
+  /** Undug, and everything off the edge of the map. The absence of a tile. */
+  rock: 0,
+  room: 1,
+  corridor: 2,
+  door: 3,
+  wall: 4,
+} as const
 
-/** Passable tile types — the set the original spelled out at each call site. */
-export const PASSABLE_TILES: readonly TileType[] = ['room', 'door', 'corridor']
+export type Tile = (typeof TILE)[keyof typeof TILE]
+
+/** Passable tiles — the set the original spelled out at each call site. */
+export const PASSABLE_TILES: readonly Tile[] = [TILE.room, TILE.door, TILE.corridor]
 
 /** A rectangular room, flattened out of rot-js's private digger fields. */
 export interface Room {
@@ -147,12 +178,27 @@ export interface Room {
   doors: Pos[]
 }
 
+/**
+ * The map as play reads it, and as phase 7 persists it.
+ *
+ * Generation needs room and corridor tiles separately, to pick spawn points and
+ * to wall the level in, but nothing in `engine/` ever looks at them — so they
+ * come back from `makeDiggerMap` alongside this rather than sitting on it. On
+ * it, they would be a near-complete second and third copy of the tile map in
+ * every save, written every 25 minutes. See §2 of docs/port/05a-simplify.md.
+ */
 export interface GameMap {
-  /** The merged lookup used during play. */
-  floorTiles: PosMap<TileType>
-  /** Kept separately because generation picks spawn points from these two. */
-  roomTiles: PosMap<TileType>
-  corridorTiles: PosMap<TileType>
+  /**
+   * Every tile, row-major, indexed `y * size[0] + x`. Length is always
+   * `size[0] * size[1]`, so there are no holes — off-map is not representable.
+   *
+   * **Read it through `tileAt` (grid.ts), not by hand.** Raw `y * w + x` on an
+   * out-of-range `x` silently lands on the neighbouring row.
+   *
+   * The name is inherited from the original and covers walls too; it is on the
+   * post-port rename list in docs/port/00-review-notes.md §6.
+   */
+  floorTiles: Tile[]
   rooms: Room[]
   size: Pos
 }

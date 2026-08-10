@@ -4,12 +4,11 @@
  * `add-killed-by` and `check-for-endgame` from original/src/rogule/engine.cljs.
  *
  * These take an Immer draft and mutate it, rather than being `state -> state`
- * like their Clojure originals. Their callers are already inside a `produce`,
- * and the pure form would mean one `produce` per line of a kill site that the
- * original wrote as a single threaded expression.
+ * like their Clojure originals — which is the house style for everything below
+ * `takeTurn`, the engine's one `produce`. See §6 of docs/port/05a-simplify.md.
  */
 import type { Draft } from 'immer'
-import { castDraft } from 'immer'
+import { castDraft, current, isDraft } from 'immer'
 import type { Entity, EntityId, EntitySummary, GameState } from '../types.ts'
 import { PLAYER_ID } from '../types.ts'
 
@@ -18,6 +17,28 @@ export const summarize = (entity: Entity): EntitySummary => ({
   name: entity.name,
   sprite: entity.sprite,
 })
+
+/**
+ * Lifts an entity out of the draft as a plain value, so it can be re-homed
+ * somewhere else in the same tree.
+ *
+ * Moving a live draft node — pushing `entities[id]` into the inventory and then
+ * deleting the table slot — is something Immer does support, but it leaves the
+ * next reader working out whether the node is reachable from two places
+ * mid-produce.
+ *
+ * The `isDraft` guard is load-bearing, not defensive. `addEntity` stores plain
+ * objects, and Immer only drafts a value it read from the base state, so
+ * anything added during *this* produce (a killed monster's `drop`, a revealed
+ * cover's `drop`) comes back raw — and bare `current()` throws on it.
+ *
+ * Note this hands back a reference, not a copy: `current()` on an untouched
+ * node returns the base object itself, and the plain path returns its argument.
+ * What keeps the value single-homed is the `removeEntity` / `delete` that
+ * follows every call site, so keep the two together.
+ */
+export const detach = (entity: Draft<Entity>): Entity =>
+  (isDraft(entity) ? current(entity) : entity) as Entity
 
 /**
  * Adds an entity, ignoring null. Both `drop` and `juice` are nullable, and every

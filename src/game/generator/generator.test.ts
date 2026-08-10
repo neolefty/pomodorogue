@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { builtinContent } from '../content/builtin.ts'
-import { canPassTile, findPath } from '../grid.ts'
+import { canPassTile, findPath, tileAt } from '../grid.ts'
 import { keyOf } from '../pos.ts'
 import { makeRng } from '../rng.ts'
 import type { Entity, GameState, LevelRequest } from '../types.ts'
-import { PLAYER_ID } from '../types.ts'
+import { PLAYER_ID, TILE } from '../types.ts'
 import { ENTITY_COUNT, MONSTER_COUNT, makeBaseLevel, makeLevel } from './index.ts'
 
 const request: LevelRequest = { runSeed: 12345, depth: 1 }
 const level = (r: LevelRequest = request): GameState => makeLevel(r, builtinContent)
 
 const monsters = (state: GameState): Entity[] =>
-  Object.values(state.entities).filter((e) => e.fns?.update === 'chasePlayer')
+  Object.values(state.entities).filter((e) => e.kind === 'monster')
 const covers = (state: GameState): Entity[] =>
-  Object.values(state.entities).filter((e) => e.fns?.encounter === 'uncoverItem')
+  Object.values(state.entities).filter((e) => e.kind === 'cover')
 
 describe('makeBaseLevel determinism', () => {
   // The broadest regression test the generator has: any accidental dependency
@@ -69,7 +69,7 @@ describe('generated levels are playable', () => {
     for (const runSeed of seeds) {
       const state = level({ runSeed, depth: 1 })
       const player = state.entities[PLAYER_ID]!
-      expect(canPassTile(state.map.floorTiles, player.pos)).toBe(true)
+      expect(canPassTile(state.map, player.pos)).toBe(true)
     }
   })
 
@@ -79,7 +79,7 @@ describe('generated levels are playable', () => {
       const player = state.entities[PLAYER_ID]!
       const shrine = state.entities['shrine']!
       const path = findPath(player.pos, shrine.pos, (x, y) =>
-        canPassTile(state.map.floorTiles, [x, y]),
+        canPassTile(state.map, [x, y]),
       )
       expect(path.length).toBeGreaterThan(0)
     }
@@ -90,6 +90,21 @@ describe('generated levels are playable', () => {
       const state = level({ runSeed, depth: 1 })
       const keys = Object.values(state.entities).map((e) => keyOf(e.pos))
       expect(new Set(keys).size).toBe(keys.length)
+    }
+  })
+
+  // A doorway is often a room's only exit, and an entity on the `occupy` layer
+  // there reads as blocked to `makeMonsterPassable` — so a monster parked in one
+  // strands everything behind it for the whole level. Swept wide rather than
+  // over `seeds`: before the fix 13 of the first 40 seeds put something on a
+  // door, and none of the five listed above was among them.
+  it('never spawns an entity in a doorway', () => {
+    for (let runSeed = 1; runSeed <= 40; runSeed++) {
+      const state = level({ runSeed, depth: 1 })
+      const inDoorway = Object.values(state.entities)
+        .filter((e) => tileAt(state.map, e.pos[0], e.pos[1]) === TILE.door)
+        .map((e) => `${e.name}@${e.pos.join(',')}`)
+      expect(inDoorway, `runSeed ${runSeed}`).toEqual([])
     }
   })
 })
@@ -116,9 +131,24 @@ describe('level contents', () => {
     // A fresh level, because this test mutates hp — the shared one stays pristine.
     const all = monsters(level())
     const first = all[0]!
-    first.stats!.hp[0] = 0
+    first.stats!.hp.cur = 0
     for (const other of all.slice(1)) {
-      if (other.name === first.name) expect(other.stats!.hp[0]).toBeGreaterThan(0)
+      if (other.name === first.name) expect(other.stats!.hp.cur).toBeGreaterThan(0)
+    }
+  })
+
+  it('gives every placed entity and every drop a kind, so none is silently inert', () => {
+    // `kind` is optional on Entity so the smoke puff and collision marker can go
+    // without one — they are decoration and have no behavior. The cost is that a
+    // placement function that forgets a kind produces an entity the encounter
+    // switch skips (`movement.ts`, `if (!occupant?.kind) continue`) with no
+    // compile error to catch it. This is that catch.
+    for (const entity of Object.values(state.entities)) {
+      expect(entity.kind).toBeDefined()
+      if (entity.drop) expect(entity.drop.kind).toBeDefined()
+      // And the decoration stays kindless on purpose: give the smoke puff a kind
+      // and uncovering an item would dispatch an encounter on the puff.
+      if (entity.juice) expect(entity.juice.kind).toBeUndefined()
     }
   })
 
@@ -141,7 +171,7 @@ describe('difficulty', () => {
     for (let runSeed = 0; runSeed < 40; runSeed++) {
       const state = level({ runSeed, depth: 1 })
       const player = state.entities[PLAYER_ID]!
-      const passable = (x: number, y: number) => canPassTile(state.map.floorTiles, [x, y])
+      const passable = (x: number, y: number) => canPassTile(state.map, [x, y])
       const shrineDistance = findPath(player.pos, state.entities['shrine']!.pos, passable).length
       for (const monster of monsters(state)) {
         const distance = findPath(player.pos, monster.pos, passable).length

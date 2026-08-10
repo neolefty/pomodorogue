@@ -2,7 +2,7 @@
 
 **Outcome:** remove structure that was carried over from the ClojureScript original as *shape* rather than as *style*, before phase 6 writes a UI against it. No behavior changes the player can see. Ports nothing — this is the first phase that deletes rather than adds.
 
-**Status:** not started.
+**Status:** done, 2026-08-10. All six sections landed, §3 included. 97 tests, typecheck and lint green; no player-visible behavior change.
 
 Numbered `5.5` on purpose. Phases 6–9 are referenced by number in dozens of doc paragraphs and code comments; renumbering them to slot this in would be a far larger diff than the work itself.
 
@@ -83,11 +83,18 @@ export type EntityKind =
 - **Update** (`monsters.ts:58`): filter to `e.kind === 'monster' && !e.dead`. Delete the `fns.update` deletion in `combat.ts:120-122` — `dead` covers it.
 - **`ContentProvider`** (`content/types.ts:31`): `ItemEncounter` is currently `Extract<EncounterFnName, ...>`. It becomes the two-member kind union (`'item' | 'potion'`), and `ItemTemplate.encounter` becomes `ItemTemplate.kind`.
 
+### One thing this spec missed, found in execution
+
+Deleting `combat.ts:120-122` removes the `encounter` deletion as well as the `update` one, and only the second is covered by the note above. Phase 5 made a corpse inert *both* ways by stripping those names; with the kind left on the corpse, `dead` has to carry both. `updateMonsters` filtering on `!e.dead` handles the update half — but the **encounter dispatch in `moveTo` needs its own `if (occupant.dead) continue`**, or walking onto a corpse re-fights it: `combat` runs against a zero-HP target, re-records the kill, and returns `blocks: true` forever, so the square becomes impassable.
+
+Landed with that guard and two tests pinning it (`the kill site > leaves the corpse inert…` and `> stops the corpse taking a turn`). Removing the guard fails those plus `reaches the shrine when walked straight to it`, which is how it was confirmed load-bearing rather than merely plausible.
+
 ### Watch for
 
 - `generator.test.ts:13-16` selects monsters and covers with `e.fns?.update === 'chasePlayer'` and `e.fns?.encounter === 'uncoverItem'`. These become `e.kind === 'monster'` / `e.kind === 'cover'` — which is the point: the test helper gets to say what it means.
 - `05-engine.md`'s "The function registry" section describes the mechanism being removed. Phase 5 is done, so that doc is a historical record — leave the section but note at its head that 5.5 supersedes it. Do not silently rewrite finished-phase specs.
 - Do **not** also collapse `EncounterFn`'s callers into the switch body. The five encounter functions stay in their own files as named, separately testable functions; only the dispatch table goes. (Their signatures do change — that is §6's half of the pass, not this one's.)
+- *(Added 2026-08-10, cross-phase review.)* This trades away something the registry had that nothing currently uses: templates could in principle mix and match the three behavior slots. Under `kind` the behavior space is exactly the union. That narrowing is deliberate — but if phase 9 later wants behavioral variants (a monster that stands guard, a trapped item), the move is template data fields read by the existing switch cases, **not** a return to per-slot registries. 09-server.md's constraint 3 now says the same from its side.
 
 ---
 
@@ -107,6 +114,31 @@ Watch for: `engine.test.ts:35-36` and `types.test.ts:18-19` both build `GameMap`
 ---
 
 ## 3. `PosMap` → flat array — decide, then do it or close it
+
+> **Decision: taken, 2026-08-10.** Done as specced. `GameMap.floorTiles` is a
+> `Tile[]` of numeric codes indexed `y * w + x`; the `PosKey` brand, `PosMap`,
+> `asPosKey`, `posEntries`, `emptyPosMap`, `posKeys`, `parsePos`, `withoutPos`
+> and `Rng.pickPos` are all gone. The entity index keeps `"x,y"` string keys, as
+> anticipated below. Measured on `runSeed 12345, depth 1`, with §2 in the same
+> pass: the serialized map went **9,612 → 2,500 bytes** and the whole
+> `GameState` **19,828 → 11,827**. Per stored tile, 15.3 → 2.0 bytes — the flat
+> array stores all 1024 tiles where the object stored only the 394 non-rock
+> ones, and still wins by 3×.
+>
+> Two things the section below did not anticipate, both now in the code:
+>
+> - **Bounds checks became load-bearing rather than defensive.** `y * w + x` at
+>   `x = -1` addresses the last tile of the previous row, so an unchecked read
+>   lets the player walk off one edge and reappear on the other. The keyed
+>   object simply had no such key. `tileAt` and `isAdjacentTile` (grid.ts) both
+>   guard, and `grid.test.ts` pins the wrap case at both.
+> - **`freeTiles` is a `Set<number>`, not the array-with-swap-remove sketched
+>   below.** Removing a *named* tile (the shrine's, each cover's) and the
+>   membership test in `freeTilesInRoom` are O(1) on a set and `indexOf` on an
+>   array; walking to a random offset ~22 times a level costs nothing against
+>   that. Set iteration is insertion-ordered and undisturbed by deletes, so
+>   determinism holds. `pickPos` left the `Rng` interface either way, which was
+>   the actual goal.
 
 **This is the judgment call of the phase.** Take the decision deliberately and record it here either way; do not leave it open for phase 6 to trip over.
 
@@ -149,6 +181,8 @@ All verified as having no callers outside their own definition or a test that ex
 
 Delete the tests that exist solely to cover deleted symbols. Do not delete `distanceSq` if §3 keeps `pos.ts` around and something in phase 6 wants it for the fog-of-war radius — check `06-ui.md` first.
 
+> **Done, 2026-08-10.** All five rows deleted. `distanceSq` **kept**: the original's fog compares squared distance against squared radii (`ui.cljs:153-156`, `clear-dist-sq` / `visible-dist-sq`) and never calls `distance`, so phase 6 wants exactly the one that survives. `Rng.clone` confirmed against PLAN.md's overlay sketch first — overlays draw from `hashSeed(runSeed, depth, historyDigest)` via `makeRng`, which is salting, not cloning — then deleted with its test.
+
 ---
 
 ## 5. Free ergonomics, no downside
@@ -161,7 +195,9 @@ Delete the tests that exist solely to cover deleted symbols. Do not delete `dist
 
 ## 6. One immutability boundary per turn
 
-**Change:** `takeTurn` becomes the engine's only `produce`. Everything beneath it — `moveTo`, `combat`, the encounters, `chasePlayer` / `updateMonsters` — becomes a draft mutator; encounters return a bare `blocks: boolean` and state travels as the draft. `takeTurn`'s external contract is untouched: frozen state in, frozen state out, so phases 6 and 7 see nothing.
+**Change:** the turn path gets exactly one `produce`, at `takeTurn`. Everything beneath it — `moveTo`, `combat`, the encounters, `chasePlayer` / `updateMonsters` — becomes a draft mutator; encounters return a bare `blocks: boolean` and state travels as the draft. `takeTurn`'s external contract is untouched: frozen state in, frozen state out, so phases 6 and 7 see nothing.
+
+The rule is **one `produce` per entry point**, not literally one in the engine — and there is a second entry point, see "The reducer phase 6 needs" below.
 
 Executes together with §1 as one engine pass — see sequencing in "Operating facts" and the note at §1.
 
@@ -199,6 +235,12 @@ export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState
 - Encounters become `(draft, actorId, targetId, rng) => boolean`. Bodies stay put; the `produce` wrapper and tuple packaging come off.
 - `state.ts`'s helpers were draft mutators all along — they turn out to have been the *right* style, not the exception. Delete the apology in their header.
 - `combat.ts`, `encounters.ts`, and `movement.ts` lose their `produce` imports entirely.
+
+### The reducer phase 6 needs
+
+*(Added 2026-08-10 in the cross-phase review, after this phase landed.)* 06-ui.md's destroy-on-end animations remove an entity from state when its CSS animation ends — an event-driven edit that cannot ride inside `takeTurn`, and `removeEntity` is a draft mutator with no `state → state` wrapper on the surface. When phase 6 starts, add `expireAnimation(state, id): GameState` — a one-line `produce` around `removeEntity` — to `engine/index.ts`, rather than letting the UI import Immer or hand-spread nested state. Same contract as `takeTurn`: frozen in, frozen out.
+
+Two pieces of housekeeping on the same surface at the same moment: `engine/index.ts` still exports `moveTo` and `updateMonsters`, which this phase turned into draft mutators a UI cannot call — prune both exports when `expireAnimation` goes in. And `turn.ts`'s "the engine's only `produce`" comment becomes "the turn path's only `produce`" at that point.
 
 ### The two places that read pre-encounter state
 

@@ -2,7 +2,6 @@
  * Entity indexing and queries. Ports the entity functions from
  * original/src/rogule/map.cljs.
  */
-import type { PosKey } from './pos.ts'
 import { keyOf } from './pos.ts'
 import type { Entity, EntityId, GameState, Layer } from './types.ts'
 import { PLAYER_ID } from './types.ts'
@@ -12,7 +11,7 @@ export const LAYERS: readonly Layer[] = ['floor', 'between', 'occupy', 'above']
 /** Entities at one position, bucketed by layer. */
 export type CellEntities = Partial<Record<Layer, Entity[]>>
 
-export type PosIndex = Map<PosKey, CellEntities>
+export type PosIndex = Map<string, CellEntities>
 
 function buildIndex(entities: Record<EntityId, Entity>): PosIndex {
   const index: PosIndex = new Map()
@@ -33,9 +32,16 @@ const indexCache = new WeakMap<Record<EntityId, Entity>, PosIndex>()
 /**
  * Position-keyed view of the entity table, memoized on the table's identity.
  *
- * The memo is why state updates go through Immer: structural sharing means an
- * update that doesn't touch entities leaves this cached, and the board re-renders
- * without rebuilding the index. A full clone per update would defeat it.
+ * Keyed by `"x,y"` strings, independently of how tiles are addressed — tiles are
+ * a flat array indexed `y * w + x`. This index is rebuilt per state and never
+ * persisted, so there is nothing to gain by packing it.
+ *
+ * The memo makes a *re-render* of an unchanged state free; it does not make
+ * updates cheap. Every turn moves the player, so `entities` changes and this
+ * rebuilds every turn regardless of Immer's structural sharing. Rebuilding a
+ * ~40-entry index is microseconds. Immer earns its place separately, on the
+ * nested writes and the single frozen boundary at `takeTurn` — two independent
+ * wins, neither resting on the other. See §6 of docs/port/05a-simplify.md.
  */
 export function entitiesByPos(entities: Record<EntityId, Entity>): PosIndex {
   const cached = indexCache.get(entities)
@@ -46,7 +52,7 @@ export function entitiesByPos(entities: Record<EntityId, Entity>): PosIndex {
 }
 
 /** Entities occupying a position, in render order, corpses beneath the living. */
-export function entitiesAt(index: PosIndex, key: PosKey): Entity[] {
+export function entitiesAt(index: PosIndex, key: string): Entity[] {
   const cell = index.get(key)
   if (!cell) return []
   const out: Entity[] = []

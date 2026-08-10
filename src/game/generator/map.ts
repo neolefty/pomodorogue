@@ -5,16 +5,33 @@
  * The output is deliberately more than one tile map: `floorTiles` is what play
  * reads, but generation needs `roomTiles` and `corridorTiles` separately to pick
  * spawn positions, and item placement needs to know which room a tile is in.
+ * Those two ride alongside the `GameMap` rather than on it, because play never
+ * reads them and phase 7 would otherwise persist a copy of each every cycle.
  */
 import { Map as RotMap } from 'rot-js'
-import { isAdjacentTile, tilesForRoom } from '../grid.ts'
-import type { Pos, PosMap } from '../pos.ts'
-import { emptyPosMap, posKey, posKeys } from '../pos.ts'
+import { isAdjacentTile, roomTileIndices, tileIndex } from '../grid.ts'
+import type { Pos } from '../pos.ts'
 import { seedGlobalRotRng } from '../rng.ts'
-import type { GameMap, Room, TileType } from '../types.ts'
+import type { GameMap, Room, Tile } from '../types.ts'
+import { TILE } from '../types.ts'
 
 /** Matches the original's `{:corridorLength [1 5]}`; every other option is rot-js's default. */
 const DIGGER_OPTIONS = { corridorLength: [1, 5] as [number, number] }
+
+/** The map, plus the tile sets only generation needs. */
+export interface DiggerMap {
+  map: GameMap
+  /** Spawn candidates, as tile indices: entities stand on room and corridor floor. */
+  roomTiles: Set<number>
+  /**
+   * Everything dug that is not inside a room — which *includes the doorways*,
+   * since a door is dug and sits outside the room rect. Callers picking spawn
+   * tiles have to subtract {@link DiggerMap.doorTiles}; see `makeBaseLevel`.
+   */
+  corridorTiles: Set<number>
+  /** The room doorways, so callers can keep chokepoints clear. */
+  doorTiles: Set<number>
+}
 
 /**
  * Builds a dungeon from a seed. Same seed and size always give the same map.
@@ -30,14 +47,15 @@ const DIGGER_OPTIONS = { corridorLength: [1, 5] as [number, number] }
  * which is why its levels were not actually reproducible; here it comes from the
  * level seed.
  */
-export function makeDiggerMap(seed: number, w: number, h: number): GameMap {
+export function makeDiggerMap(seed: number, w: number, h: number): DiggerMap {
   seedGlobalRotRng('map', seed, w, h)
   const digger = new RotMap.Digger(w, h, DIGGER_OPTIONS)
+  const size: Pos = [w, h]
 
   // Every dug tile, room and corridor alike — the digger's own view of the map.
-  const dug = emptyPosMap<true>()
+  const dug = new Set<number>()
   digger.create((x, y, value) => {
-    if (value === 0) dug[posKey(x, y)] = true
+    if (value === 0) dug.add(tileIndex(size, x, y))
   })
 
   // The original reached into rot-js's private `_rooms`/`_x1`/`_doors` fields and
@@ -56,33 +74,33 @@ export function makeDiggerMap(seed: number, w: number, h: number): GameMap {
     }
   })
 
-  const roomTiles = emptyPosMap<TileType>()
-  for (const room of rooms) Object.assign(roomTiles, tilesForRoom(room))
-
-  const doorTiles = emptyPosMap<TileType>()
+  const roomTiles = new Set<number>()
   for (const room of rooms) {
-    for (const door of room.doors) doorTiles[posKey(door[0], door[1])] = 'door'
+    for (const index of roomTileIndices(room, size)) roomTiles.add(index)
+  }
+
+  const doorTiles = new Set<number>()
+  for (const room of rooms) {
+    for (const door of room.doors) doorTiles.add(tileIndex(size, door[0], door[1]))
   }
 
   // Anything dug that isn't inside a room is corridor.
-  const corridorTiles = emptyPosMap<TileType>()
-  for (const key of posKeys(dug)) {
-    if (roomTiles[key] === undefined) corridorTiles[key] = 'corridor'
+  const corridorTiles = new Set<number>()
+  for (const index of dug) {
+    if (!roomTiles.has(index)) corridorTiles.add(index)
   }
 
   // Walls are the undug shell around rooms and corridors: adjacent to floor
-  // (diagonals included), not themselves dug or floor. They live in `floorTiles`
-  // and are rejected by the passable check — the naming is inherited from the
-  // original and is on the post-port rename list.
+  // (diagonals included), not themselves dug or floor.
   // (The original also excluded corridor tiles when walling corridors; they are
   // all dug by definition, so the `dug` check already covers it.)
-  const wallsAround = (tiles: PosMap<TileType>) => {
-    const walls = emptyPosMap<TileType>()
+  const wallsAround = (tiles: ReadonlySet<number>): Set<number> => {
+    const walls = new Set<number>()
     for (let x = 0; x < w; x++) {
       for (let y = 0; y < h; y++) {
-        const key = posKey(x, y)
-        if (dug[key] !== undefined || roomTiles[key] !== undefined) continue
-        if (isAdjacentTile([x, y], tiles)) walls[key] = 'wall'
+        const index = tileIndex(size, x, y)
+        if (dug.has(index) || roomTiles.has(index)) continue
+        if (isAdjacentTile(size, x, y, tiles)) walls.add(index)
       }
     }
     return walls
@@ -90,19 +108,18 @@ export function makeDiggerMap(seed: number, w: number, h: number): GameMap {
   const roomWallTiles = wallsAround(roomTiles)
   const corridorWallTiles = wallsAround(corridorTiles)
 
-  return {
-    // Merge order is the original's, and it matters: doors are laid over
-    // corridors, and floor over the walls that surround it.
-    floorTiles: {
-      ...roomTiles,
-      ...roomWallTiles,
-      ...corridorWallTiles,
-      ...corridorTiles,
-      ...doorTiles,
-    },
-    roomTiles,
-    corridorTiles,
-    rooms,
-    size: [w, h],
+  // Paint order is the original's merge order, and it matters: doors are laid
+  // over corridors, and floor over the walls that surround it. Everything not
+  // painted stays rock, which is what the original expressed as an absent key.
+  const floorTiles = new Array<Tile>(w * h).fill(TILE.rock)
+  const paint = (tiles: ReadonlySet<number>, tile: Tile): void => {
+    for (const index of tiles) floorTiles[index] = tile
   }
+  paint(roomTiles, TILE.room)
+  paint(roomWallTiles, TILE.wall)
+  paint(corridorWallTiles, TILE.wall)
+  paint(corridorTiles, TILE.corridor)
+  paint(doorTiles, TILE.door)
+
+  return { map: { floorTiles, rooms, size }, roomTiles, corridorTiles, doorTiles }
 }

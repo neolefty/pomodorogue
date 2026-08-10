@@ -40,14 +40,6 @@ describe('makeRng', () => {
     expect(a).not.toEqual(b)
   })
 
-  it('clones an independent stream that does not disturb the original', () => {
-    const base = makeRng('combat', 1)
-    const clone = base.clone()
-    const fromClone = Array.from({ length: 5 }, () => clone.next())
-    const fromBase = Array.from({ length: 5 }, () => base.next())
-    expect(fromClone).toEqual(fromBase)
-  })
-
   it('int() stays in range and tolerates an empty range', () => {
     const rng = makeRng('x')
     for (let i = 0; i < 200; i++) {

@@ -8,12 +8,12 @@
  * function. See docs/port/04-generator.md.
  */
 import type { Sprite } from '../sprites.ts'
-import type { EncounterFnName, LevelRequest, Stats } from '../types.ts'
+import type { EntityKind, LevelRequest, Stats } from '../types.ts'
 
 /**
  * Templates are plain JSON-serializable data — no functions — for the same
  * reason `GameState` is: they cross a network boundary in phase 9, and the
- * behavior they name is resolved through the engine registries.
+ * behavior they name is resolved by the engine's `kind` switch.
  */
 
 /** Stats as a template carries them; `hpInc` is a runtime counter, set at placement. */
@@ -28,21 +28,21 @@ export interface MonsterTemplate {
 }
 
 /** Items either go in the inventory or are drunk on the spot; nothing else. */
-export type ItemEncounter = Extract<EncounterFnName, 'addItemToInventory' | 'increaseHp'>
+export type ItemKind = Extract<EntityKind, 'item' | 'potion'>
 
 export interface ItemTemplate {
   name: string
   sprite: Sprite
   /** Rarity: generation weights each item by `1 / value`, so higher is rarer. */
   value: number
-  encounter: ItemEncounter
+  kind: ItemKind
   /** Weapon damage, added to the player's total while carried. */
   dmg?: number
   /** Armour absorption, added to the player's total while carried. */
   armour?: number
 }
 
-/** The thing an item hides under. Its encounter behavior is always `uncoverItem`. */
+/** The thing an item hides under. Placed as an entity of kind `cover`. */
 export interface CoverTemplate {
   name: string
   sprite: Sprite

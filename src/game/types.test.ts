@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { posKey } from './pos.ts'
+import { tileIndex } from './grid.ts'
+import type { Pos } from './pos.ts'
 import { SPRITES } from './sprites.ts'
-import type { GameState } from './types.ts'
+import type { GameState, Tile } from './types.ts'
+import { TILE } from './types.ts'
 
 /**
  * A hand-built state exercising every field shape in GameState — nested
@@ -9,16 +11,24 @@ import type { GameState } from './types.ts'
  * this should be supplemented with a real generated level, but the guard below
  * is worth having before then.
  */
+const MAP_SIZE: Pos = [32, 32]
+
+function sampleFloorTiles(): Tile[] {
+  const tiles = new Array<Tile>(MAP_SIZE[0] * MAP_SIZE[1]).fill(TILE.rock)
+  tiles[tileIndex(MAP_SIZE, 1, 1)] = TILE.room
+  tiles[tileIndex(MAP_SIZE, 2, 1)] = TILE.door
+  tiles[tileIndex(MAP_SIZE, 3, 1)] = TILE.wall
+  return tiles
+}
+
 function sampleState(): GameState {
   return {
     seed: 12345,
     depth: 1,
     map: {
-      floorTiles: { [posKey(1, 1)]: 'room', [posKey(2, 1)]: 'door', [posKey(3, 1)]: 'wall' },
-      roomTiles: { [posKey(1, 1)]: 'room' },
-      corridorTiles: {},
+      floorTiles: sampleFloorTiles(),
       rooms: [{ x1: 1, y1: 1, x2: 4, y2: 4, doors: [[2, 1]] }],
-      size: [32, 32],
+      size: MAP_SIZE,
     },
     entities: {
       player: {
@@ -27,11 +37,11 @@ function sampleState(): GameState {
         sprite: SPRITES.elf,
         pos: [1, 1],
         layer: 'occupy',
-        stats: { hp: [7, 10], xp: 3, hpInc: 42 },
+        stats: { hp: { cur: 7, max: 10 }, xp: 3, hpInc: 42 },
         inventory: [
           { id: 'e1', name: 'axe', sprite: SPRITES.axe, pos: [1, 1], layer: 'floor', dmg: 2 },
         ],
-        fns: { encounter: 'combat', passable: 'playerPassable' },
+        kind: 'player',
         kills: [{ name: 'the bat', sprite: SPRITES.bat }],
         killedBy: null,
         animation: null,
@@ -42,9 +52,9 @@ function sampleState(): GameState {
         sprite: SPRITES.rat,
         pos: [2, 1],
         layer: 'occupy',
-        stats: { hp: [2, 2], xp: 1, hpInc: 0 },
+        stats: { hp: { cur: 2, max: 2 }, xp: 1, hpInc: 0 },
         activation: 3,
-        fns: { encounter: 'combat', update: 'chasePlayer', passable: 'monsterPassable' },
+        kind: 'monster',
         drop: {
           id: 'e3',
           name: 'mushroom',
@@ -87,7 +97,7 @@ describe('GameState serializability', () => {
     walk(sampleState(), 'state')
   })
 
-  it('holds no functions, so behavior must go through the name registries', () => {
+  it('holds no functions, so behavior must be named by a `kind`', () => {
     const walk = (value: unknown, path: string): void => {
       expect(typeof value, `${path} is a function`).not.toBe('function')
       if (value === null || typeof value !== 'object') return
