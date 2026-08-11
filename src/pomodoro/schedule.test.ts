@@ -9,10 +9,15 @@ import {
   canPlay,
   DEFAULT_CONFIG,
   endBreak,
+  endBreakAtDeadline,
   formatDuration,
   initialSchedule,
+  phaseAt,
+  restRemaining,
   startBreakClock,
   timeUntilBreak,
+  workJustStarted,
+  workStartsAt,
 } from './schedule.ts'
 
 /**
@@ -119,6 +124,112 @@ describe('endBreak', () => {
     const frozen = endBreak(T0 + CONFIG.breakMs, CONFIG)
     expect(canPlay(frozen, T0 + CONFIG.breakMs + CONFIG.workMs - 1, CONFIG)).toBe(false)
     expect(canPlay(frozen, T0 + CONFIG.breakMs + CONFIG.workMs, CONFIG)).toBe(true)
+  })
+})
+
+/**
+ * A break in progress: it opened some time ago, and the player's first action
+ * of it was at T0, so it runs to T0 + 5m. Every ending below is that same break
+ * ending, which is the point — all three have to agree.
+ */
+const inProgress = at(initialSchedule(), T0)
+const DEADLINE = T0 + CONFIG.breakMs
+
+describe('endBreakAtDeadline', () => {
+  it('gives a fast player exactly the wait a slow one gets, never a longer one', () => {
+    // The phase-7 bug this phase exists to fix, and it was in the *caller*:
+    // ending a break with `endBreak(now)` on a win put the next break 25
+    // minutes from the win, so clearing at 1:30 meant waiting 3:30 longer than
+    // someone who used the whole five minutes. Both of these must land on the
+    // deadline; passing `now` through instead fails this.
+    const clearedEarly = endBreakAtDeadline(inProgress, T0 + 90_000, CONFIG)
+    const dawdled = endBreakAtDeadline(inProgress, T0 + 4 * MINUTE, CONFIG)
+    expect(clearedEarly.nextPlayableAt).toBe(DEADLINE + CONFIG.workMs)
+    expect(clearedEarly.nextPlayableAt).toBe(dawdled.nextPlayableAt)
+  })
+
+  it('does not charge a shut laptop twice for a break it never took', () => {
+    // The freeze path, noticed four hours late. The work interval still ran
+    // from the deadline, so by the time anyone looks it is long since over.
+    const frozen = endBreakAtDeadline(inProgress, T0 + 4 * 60 * MINUTE, CONFIG)
+    expect(frozen.nextPlayableAt).toBe(DEADLINE + CONFIG.workMs)
+    expect(canPlay(frozen, T0 + 4 * 60 * MINUTE, CONFIG)).toBe(true)
+  })
+
+  it('falls back to now for a break whose clock never started', () => {
+    const untouched = endBreakAtDeadline(initialSchedule(), T0, CONFIG)
+    expect(untouched.nextPlayableAt).toBe(T0 + CONFIG.workMs)
+  })
+
+  it('clears the break clock, whichever way the break ended', () => {
+    expect(endBreakAtDeadline(inProgress, T0 + 90_000, CONFIG).breakStartedAt).toBeNull()
+  })
+})
+
+describe('the rest of the break', () => {
+  // The player sat down at T0 and cleared the level in ninety seconds. The
+  // break still ends at T0 + 5m, and the work interval still starts there.
+  const clearedEarly = endBreakAtDeadline(inProgress, T0 + 90_000, CONFIG)
+
+  it('does not start the work interval early just because the level ended', () => {
+    expect(workStartsAt(clearedEarly, CONFIG)).toBe(DEADLINE)
+    expect(restRemaining(clearedEarly, T0 + 90_000, CONFIG)).toBe(CONFIG.breakMs - 90_000)
+  })
+
+  it('recovers the break end without a third field on the schedule', () => {
+    expect(Object.keys(clearedEarly).sort()).toEqual(['breakStartedAt', 'nextPlayableAt'])
+    expect(clearedEarly.breakStartedAt).toBeNull()
+  })
+
+  it('runs out at the deadline and does not go negative', () => {
+    expect(restRemaining(clearedEarly, DEADLINE - 1, CONFIG)).toBe(1)
+    expect(restRemaining(clearedEarly, DEADLINE, CONFIG)).toBe(0)
+    expect(restRemaining(clearedEarly, DEADLINE + MINUTE, CONFIG)).toBe(0)
+  })
+})
+
+describe('phaseAt', () => {
+  const cleared = endBreakAtDeadline(inProgress, T0 + 90_000, CONFIG)
+
+  it('walks playing → resting → working → playing across one whole cycle', () => {
+    expect(phaseAt(initialSchedule(), T0, CONFIG)).toBe('playing')
+    expect(phaseAt(cleared, T0 + 90_000, CONFIG)).toBe('resting')
+    expect(phaseAt(cleared, DEADLINE, CONFIG)).toBe('working')
+    expect(phaseAt(cleared, DEADLINE + CONFIG.workMs, CONFIG)).toBe('playing')
+  })
+
+  it('has no resting phase when the level froze on the clock', () => {
+    // Freezing is noticed at or after the deadline and always ends the break
+    // *at* it, so there is no instant left over to rest in — not at the moment
+    // the level froze, and not at the moment anyone noticed.
+    const frozen = endBreakAtDeadline(inProgress, DEADLINE + 3 * MINUTE, CONFIG)
+    expect(phaseAt(frozen, DEADLINE, CONFIG)).toBe('working')
+    expect(phaseAt(frozen, DEADLINE + 3 * MINUTE, CONFIG)).toBe('working')
+    expect(restRemaining(frozen, DEADLINE, CONFIG)).toBe(0)
+  })
+
+  it('never rests during a break that is still being played', () => {
+    expect(phaseAt(inProgress, T0 + MINUTE, CONFIG)).toBe('playing')
+  })
+})
+
+describe('workJustStarted', () => {
+  const cleared = endBreakAtDeadline(inProgress, T0 + 90_000, CONFIG)
+
+  it('is true for a transition just noticed, and stays true through a throttled tick', () => {
+    expect(workJustStarted(cleared, DEADLINE, CONFIG)).toBe(true)
+    // A hidden tab ticks about once a minute at worst.
+    expect(workJustStarted(cleared, DEADLINE + MINUTE, CONFIG)).toBe(true)
+  })
+
+  it('is false once the news is stale, so a woken laptop rings no bell', () => {
+    expect(workJustStarted(cleared, DEADLINE + CONFIG.bellWindowMs, CONFIG)).toBe(false)
+    expect(workJustStarted(cleared, DEADLINE + 20 * MINUTE, CONFIG)).toBe(false)
+  })
+
+  it('is false while the break is still running, so the bell cannot ring early', () => {
+    expect(workJustStarted(cleared, DEADLINE - 1, CONFIG)).toBe(false)
+    expect(workJustStarted(cleared, T0 + 90_000, CONFIG)).toBe(false)
   })
 })
 

@@ -296,14 +296,28 @@ span.xp {
 /***** the pomodoro timer *****/
 
 /*
- * A work interval. The board stays on screen — dimmed, drained of colour and
- * inert — because hiding it would read as "the level is gone", which is exactly
- * what freezing exists to avoid. The refusal itself lives in `move`; this is
- * what stops a click from looking like it landed.
+ * A work interval. The board stays on screen — dimmed and inert — because
+ * hiding it would read as "the level is gone", which is exactly what freezing
+ * exists to avoid. The refusal itself lives in `move`; this is what stops a
+ * click from looking like it landed.
+ *
+ * **No `filter` here, deliberately.** This rule used to add
+ * `filter: grayscale(0.8)`, which drained the colour and also moved half the UI:
+ * a non-`none` filter makes its element a containing block for every
+ * absolutely-positioned descendant, and `#game` is not otherwise positioned. So
+ * `#health-bars`, `#inventory ul` and `#arrow-buttons` resolved against the
+ * viewport while playing and against `#game` while frozen, and jumped between
+ * the two — most visibly the player's own face at the head of the health bar,
+ * which appeared near the top-left corner for the length of the work interval
+ * and looked like a second player on the board. Reported by Bill on 2026-08-11.
+ *
+ * `opacity` is safe where `filter` is not: it makes a stacking context but not
+ * a containing block, so nothing moves. Grayscale is not worth reintroducing
+ * for it — anything that restores it has to keep the filtered element clear of
+ * those three, which means a wrapper around the grid alone.
  */
 #game.frozen {
   opacity: 0.3;
-  filter: grayscale(0.8);
   pointer-events: none;
   user-select: none;
 }
@@ -356,6 +370,27 @@ span.xp {
 /* On the tombstone, where the original had its "next rogule" countdown. */
 .timer.next {
   font-size: 1.25em;
+}
+
+/*
+ * Also on the tombstone, but before the countdown above it: the part of the
+ * break the player has left after finishing the level. Given the warm colour
+ * the break timer's last minute uses, because both say "this time is still
+ * yours" rather than "you are waiting".
+ */
+.timer.rest {
+  font-size: 1.25em;
+}
+
+.timer.rest .timer-clock {
+  color: #cc7722;
+}
+
+/* The nudge to go and do something else. Quiet — it is advice, not a warning. */
+.away {
+  margin: 0.5em 0px 0px;
+  font-size: 0.5em;
+  color: #6c7a88;
 }
 
 /***** juice *****/

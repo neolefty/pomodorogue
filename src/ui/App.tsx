@@ -25,15 +25,17 @@ import { makeRng } from '../game/rng.ts'
 import type { EntityId, GameState, Statistics } from '../game/types.ts'
 import type { PomodoroConfig, Schedule } from '../pomodoro/schedule.ts'
 import {
-  breakDeadline,
   breakEnding,
   breakExpired,
   breakRemaining,
   canPlay,
   DEFAULT_CONFIG,
-  endBreak,
+  endBreakAtDeadline,
+  phaseAt,
+  restRemaining,
   startBreakClock,
   timeUntilBreak,
+  workJustStarted,
 } from '../pomodoro/schedule.ts'
 import { newRun, randomSeed, usePomodoro } from '../pomodoro/usePomodoro.ts'
 import { ArrowButtons } from './ArrowButtons.tsx'
@@ -43,7 +45,24 @@ import { Help } from './Help.tsx'
 import { Inventory } from './Inventory.tsx'
 import { Timer } from './Timer.tsx'
 import { Tombstone } from './Tombstone.tsx'
+import { useChime } from './useChime.ts'
 import { useKeyboard } from './useKeyboard.ts'
+
+/**
+ * Shown under the rest-of-the-break countdown. The point of the phase is to get
+ * the player off the screen, so this is the one place the game argues against
+ * itself.
+ *
+ * Picked by play count rather than at random — no entropy needed, and a player
+ * doing this sixteen times a day sees a different line each time rather than
+ * the same one until it stops registering.
+ */
+const ENCOURAGEMENT = [
+  'Rest your eyes on something further away than this.',
+  'Stand up. The bell will tell you when work starts.',
+  'Get a glass of water — you have time.',
+  'Look out of a window until the bell rings.',
+]
 
 /**
  * Folds a finished level into the run's running totals.
@@ -96,20 +115,13 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
   /**
    * Freezes the level when its break runs out, and starts the work interval.
    *
-   * The interval runs from the *deadline*, not from the moment the expiry was
-   * noticed. With the tab open those are a second apart; with it shut they are
-   * however long the player was away, and charging that time to the work
-   * interval would charge it twice — once against the break they were not
-   * taking, and again against the wait for the next one. Someone who closes the
-   * laptop mid-break and opens it four hours later has done the work.
-   *
-   * `at` is only the fallback for a break with no clock running, which the
-   * `breakExpired` guard at both call sites has already ruled out.
+   * The arithmetic — and the reason a win, a death and a freeze all share it —
+   * is `endBreakAtDeadline`, in `schedule.ts` with the rest of the clock.
    */
   const finishBreak = useCallback(
     (schedule: Schedule, at: number) => {
       rngRef.current = null
-      update({ schedule: endBreak(breakDeadline(schedule, config) ?? at, config) })
+      update({ schedule: endBreakAtDeadline(schedule, at, config) })
     },
     [config, update],
   )
@@ -186,24 +198,34 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
       // A refused move is not an action, and so does not start the break clock.
       if (next === current.level) return
 
-      if (next.outcome) {
-        // A win or a death ends the break as surely as the clock does. Scored
-        // here rather than in an effect: this is a fact about a transition, and
-        // the guard above is what keeps it to once per level.
-        rngRef.current = null
-        update({
-          level: next,
-          run: { ...current.run, statistics: recordOutcome(current.run.statistics, next) },
-          schedule: endBreak(at, config),
-        })
-        return
-      }
-
       // The break clock starts on the player's first action of the break, not
       // when the break became available — working past the bell costs nothing.
       // `startBreakClock` hands back the same object on every action after the
       // first, and `update` persists only what changed.
-      update({ level: next, schedule: startBreakClock(current.schedule, at) })
+      //
+      // Done before the outcome branch, not inside the plain-move one, so that
+      // `endBreakAtDeadline` always has a deadline to work from. A level cleared
+      // on the very first move of a break would otherwise have no clock running
+      // and fall back to `at`, quietly forfeiting the five minutes in the one
+      // case the player most obviously earned them.
+      const started = startBreakClock(current.schedule, at)
+
+      if (next.outcome) {
+        // A win or a death ends the *level*. The break runs on without it —
+        // `endBreakAtDeadline` puts the work interval at the deadline either
+        // way — and the tombstone counts down what is left of it. Scored here
+        // rather than in an effect: this is a fact about a transition, and the
+        // guard above is what keeps it to once per level.
+        rngRef.current = null
+        update({
+          level: next,
+          run: { ...current.run, statistics: recordOutcome(current.run.statistics, next) },
+          schedule: endBreakAtDeadline(started, at, config),
+        })
+        return
+      }
+
+      update({ level: next, schedule: started })
     },
     [config, finishBreak, read, update],
   )
@@ -225,7 +247,36 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
     [read, update],
   )
 
-  const playable = canPlay(schedule, now, config)
+  const phase = phaseAt(schedule, now, config)
+  const playable = phase === 'playing'
+
+  // The bell, rung on the break → work edge and nowhere else. It is what lets
+  // the player be away from the screen when the break ends, which is the whole
+  // reason the rest of the break is worth having.
+  //
+  // Both endings arrive here: a frozen level enters `working` the moment
+  // `advance` notices the deadline, and a finished one when the rest of the
+  // break runs out with the tombstone up. Neither needs a special case, because
+  // the phase is derived from the clock rather than signalled by the transition.
+  //
+  // Which is also why `workJustStarted` has to be asked. Derived from the clock
+  // means noticed only when watched: a laptop shut through the end of a break
+  // crosses into `working` on the *next* thing that ticks, and a bell then is
+  // an announcement about twenty minutes ago, delivered to someone visibly at
+  // their desk. The edge is real, the news is stale, and only the second one
+  // deserves a sound.
+  const ring = useChime()
+  const rungFor = useRef(phase)
+  useEffect(() => {
+    if (rungFor.current === phase) return
+    const previous = rungFor.current
+    rungFor.current = phase
+    // Not on the first phase seen: a tab opened mid-work-interval has not just
+    // been sent back to work, it was already there.
+    if (phase === 'working' && previous !== 'working' && workJustStarted(schedule, now, config)) {
+      ring()
+    }
+  }, [config, now, phase, ring, schedule])
 
   if (level !== null && level.outcome !== null) {
     return (
@@ -233,11 +284,25 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
         state={level}
         statistics={run.statistics}
         footer={
-          <Timer
-            className="timer next"
-            label="next break in"
-            remainingMs={timeUntilBreak(schedule, now)}
-          />
+          phase === 'resting' ? (
+            // The level is over and the break is not. Phase 7 sent the player
+            // straight to a 25-minute countdown here, which punished finishing
+            // early; what is left of the break is theirs.
+            <>
+              <Timer
+                className="timer rest"
+                label="rest of your break"
+                remainingMs={restRemaining(schedule, now, config)}
+              />
+              <p className="away">{ENCOURAGEMENT[run.statistics.runs % ENCOURAGEMENT.length]}</p>
+            </>
+          ) : (
+            <Timer
+              className="timer next"
+              label="next break in"
+              remainingMs={timeUntilBreak(schedule, now)}
+            />
+          )
         }
       />
     )

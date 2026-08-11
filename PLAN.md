@@ -53,7 +53,7 @@ Each phase is a doc in `docs/port/`. They are ordered by dependency; do them in 
 | 5.5 | Simplification | [05a-simplify.md](docs/port/05a-simplify.md) | Shed ported structure that isn't earning its keep, before the UI is written against it |
 | 6 | UI | [06-ui.md](docs/port/06-ui.md) | React components + CSS; **game is playable and matches the original** |
 | 7 | Pomodoro | [07-pomodoro.md](docs/port/07-pomodoro.md) | 25-minute gate, 5-minute level cap, persistence across reloads |
-| 7.5 | Break payoff | [07a-break-payoff.md](docs/port/07a-break-payoff.md) | Finishing early keeps the rest of the break, earns a bonus, and rings a bell |
+| 7.5 | Break payoff | [07a-break-payoff.md](docs/port/07a-break-payoff.md) | Finishing early keeps the rest of the break, and a bell ends it |
 | 8 | Depth | [08-depth.md](docs/port/08-depth.md) | Stairs instead of shrine, multi-level runs, difficulty ramp |
 | 9 | Server (deferred) | [09-server.md](docs/port/09-server.md) | Optional backend for AI-generated content. Not built yet — only the seam is. |
 
@@ -149,7 +149,16 @@ Answer these when the phase that needs them comes up. Don't block earlier phases
 3. **How does difficulty scale with depth?** The original scales within a level by path distance from the player's start (`pos-to-difficulty`). Depth needs to shift the monster table index too. Needed by phase 8.
 4. **Does the run end at some depth, or go forever?** Needed by phase 8.
 5. ~~**Do tile maps stay `PosMap` (`"x,y"`-keyed objects), or become flat arrays?**~~ **Answered 2026-08-10: flat arrays.** `GameMap.floorTiles` is a `Tile[]` of numeric codes indexed `y * w + x`; the branded `PosKey` and its helpers are gone, and the entity index keeps string keys. With §2 in the same pass this took a serialized `GameState` from 19,828 to 11,827 bytes. See the decision note at §3 of [05a-simplify.md](docs/port/05a-simplify.md), which also records the two things that turned out differently from the sketch.
-6. **What does finishing a level early earn, and does it carry?** Raised by Bill on 2026-08-10 after playing phase 7, which gives a fast player nothing for it but a longer wait. The candidates — a `PlayerCarry` bonus versus a mark on the share string — pull in opposite directions on balance, so decide alongside phase 8's difficulty ramp rather than before it. Needed by phase 7.5; see [07a-break-payoff.md](docs/port/07a-break-payoff.md).
+6. **What does finishing a level early earn, and does it carry?** Raised by Bill on 2026-08-10 after playing phase 7, which gave a fast player nothing for it but a longer wait. **Half-answered 2026-08-11: the longer wait is gone, and no bonus is built.** Phase 7.5 fixed the wait — the work interval now starts when the break was always going to end — and Bill's call was to stop there: *getting to play at all is the bonus for having done the work*, so a second reward inside the break has to earn its place before it is built. The candidates, if it comes back, are a `PlayerCarry` bonus versus a mark on the share string; they pull in opposite directions on balance, so decide alongside phase 8's difficulty ramp. Not blocking anything. See [07a-break-payoff.md](docs/port/07a-break-payoff.md).
+7. **What announces a transition, and how much of it does the player choose?** Raised by Bill on 2026-08-11, after phase 7.5 shipped an unconditional synthesized bell at break → work. Two halves are settled going in: **the end of the break should announce itself**, because that is what lets the player be away from the screen, and it is the only transition that needs a sound; and **the start of a break should not fire a fixed alarm**, because being summoned to play is an interruption rather than a service. Open is everything else — whether the announcement is a tone, a Web Notification, or either at the player's choice; what "pleasant" turns out to mean when heard sixteen times a day; and where settings live, given the game has no settings UI at all. Expect to experiment rather than to decide on paper. Two constraints for whoever picks it up: a Notification reaches a player who has switched applications, where audio from a backgrounded tab can be throttled or suspended outright; and there is currently no way to mute a sound the game plays unprompted, which is the minimum any answer has to fix. Not blocking anything. See "The bell" in [07a-break-payoff.md](docs/port/07a-break-payoff.md) for what is built today.
+
+---
+
+## To do
+
+Decided work that no phase owns. Newest first. Anything here is small and unblocked — if it needs a decision first, it belongs in Open questions instead.
+
+- **Give the rest-of-break timer a colour of its own.** `.timer.rest` and `.timer.break.warn` are both `#cc7722` in `src/ui/styles.css`, meaning opposite things: on the break timer it is urgency — "the break is ending, find a stopping point" — and on the tombstone it is leisure — "this time is still yours". A player learns the colour in one context and then meets it in the other, and the second reading undoes the first. Pick a second warm tone, or repaint the *warn* case, since that is the one carrying urgency and the one that should stand alone. Raised in review 2026-08-11.
 
 ---
 
@@ -165,6 +174,6 @@ Update this as phases land.
 - [x] Phase 5.5 — Simplification
 - [x] Phase 6 — UI — **the port is done; the game plays like the original**
 - [x] Phase 7 — Pomodoro — **the game is a pomodoro timer; a run survives a reload**
-- [ ] Phase 7.5 — Break payoff ← **next**
-- [ ] Phase 8 — Depth
+- [x] Phase 7.5 — Break payoff — **finishing early keeps the rest of the break, and a bell ends it**
+- [ ] Phase 8 — Depth ← **next**
 - [ ] Phase 9 — Server (deferred)

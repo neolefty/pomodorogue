@@ -44,6 +44,17 @@ export interface PomodoroConfig {
    * a test with a two-second break would trip on every time.
    */
   warnMs: number
+  /**
+   * How late the work interval's start may be *noticed* and still be worth
+   * announcing. See {@link workJustStarted}.
+   *
+   * Two minutes is picked to sit above every legitimate delay and below every
+   * illegitimate one. A visible tab notices within a second; a hidden one is
+   * throttled to a tick a second, and to a tick a minute only after five
+   * minutes hidden, which a five-minute break cannot outlast. A closed laptop,
+   * by contrast, notices hours late.
+   */
+  bellWindowMs: number
 }
 
 export const DEFAULT_CONFIG: PomodoroConfig = {
@@ -51,6 +62,7 @@ export const DEFAULT_CONFIG: PomodoroConfig = {
   breakMs: 5 * 60_000,
   maxBankedBreaks: 1,
   warnMs: 60_000,
+  bellWindowMs: 2 * 60_000,
 }
 
 /**
@@ -100,9 +112,18 @@ export function breaksAvailable(
 export const canPlay = (schedule: Schedule, now: number, config: PomodoroConfig): boolean =>
   breaksAvailable(schedule, now, config) > 0
 
+/**
+ * Milliseconds from `now` to `target`, floored at zero.
+ *
+ * Every countdown in this module is this shape — a moment the schedule already
+ * knows, minus the clock, never negative — so the clamp lives here rather than
+ * three times over. The three differ only in which moment they measure to.
+ */
+const until = (target: number, now: number): number => Math.max(0, target - now)
+
 /** How long until the gate opens. Zero once it is open. */
 export const timeUntilBreak = (schedule: Schedule, now: number): number =>
-  Math.max(0, schedule.nextPlayableAt - now)
+  until(schedule.nextPlayableAt, now)
 
 /** When the current break runs out, or null while the player has yet to act. */
 export const breakDeadline = (schedule: Schedule, config: PomodoroConfig): number | null =>
@@ -120,7 +141,7 @@ export function breakRemaining(
 ): number {
   const deadline = breakDeadline(schedule, config)
   if (deadline === null) return config.breakMs
-  return Math.max(0, deadline - now)
+  return until(deadline, now)
 }
 
 export function breakExpired(
@@ -157,18 +178,118 @@ export const startBreakClock = (schedule: Schedule, now: number): Schedule =>
   schedule.breakStartedAt === null ? { ...schedule, breakStartedAt: now } : schedule
 
 /**
- * Ends the break — on a win, a death, or the level freezing — and starts the
- * next work interval.
+ * Ends the break at `endsAt` and starts the work interval there.
  *
- * Deliberately `now + workMs` rather than `previousNextPlayableAt + workMs`:
- * the interval starts when you stop playing, so a long break does not eat into
- * the next work block. It takes no previous `Schedule` because it needs
- * nothing from one; both fields are replaced outright.
+ * The argument is the moment the *break* ends, which is not always the moment
+ * this is called. A level that freezes on the deadline ends its break at the
+ * deadline however much later the expiry was noticed; a level won with two
+ * minutes left ends its break two minutes later. Only a break with no clock
+ * running — nobody ever acted — ends where it is told to.
+ *
+ * Deliberately relative to that moment rather than to the previous
+ * `nextPlayableAt`: the work interval starts when the break ends, so a break
+ * taken late does not eat into the next work block. It takes no previous
+ * `Schedule` because it needs nothing from one; both fields are replaced.
  */
-export const endBreak = (now: number, config: PomodoroConfig): Schedule => ({
-  nextPlayableAt: now + config.workMs,
+export const endBreak = (endsAt: number, config: PomodoroConfig): Schedule => ({
+  nextPlayableAt: endsAt + config.workMs,
   breakStartedAt: null,
 })
+
+/**
+ * The schedule that follows the break, for all three ways a break can end — a
+ * win, a death, or the level freezing on the clock.
+ *
+ * All three are one expression, which is the whole of phase 7.5: the work
+ * interval starts when the break was always going to end, at the *deadline*,
+ * never at the moment the ending happened to be noticed.
+ *
+ * - **Frozen on the clock.** With the tab open the deadline and the noticing
+ *   are a second apart; with it shut they are however long the player was away,
+ *   and charging that time to the work interval would charge it twice — once
+ *   against the break they were not taking, and again against the wait for the
+ *   next one. Someone who closes the laptop mid-break and opens it four hours
+ *   later has done the work.
+ * - **Won or died.** Phase 7 used `now` here, which handed a player who cleared
+ *   a level in ninety seconds a *longer* wait than one who dawdled. The five
+ *   minutes are the player's: finishing early neither forfeits the rest of them
+ *   nor buys a shorter work interval.
+ *
+ * `now` is only the fallback for a break whose clock never started, which no
+ * caller can currently reach — the freeze path is guarded by `breakExpired`,
+ * and the outcome path starts the clock before it gets here. Kept because "no
+ * clock ever ran" has no better answer than "now".
+ */
+export const endBreakAtDeadline = (
+  schedule: Schedule,
+  now: number,
+  config: PomodoroConfig,
+): Schedule => endBreak(breakDeadline(schedule, config) ?? now, config)
+
+/**
+ * When the work interval begins — equivalently, when the break ends or ended.
+ *
+ * Derived, not stored. `endBreak` puts the break's end plus a work interval
+ * into `nextPlayableAt`, so subtracting the interval recovers it exactly, and
+ * `Schedule` keeps its two fields and its schema version. `breakStartedAt` is
+ * no use for this: it goes to null on the outcome, because the break clock is
+ * not what is being counted any more.
+ *
+ * Meaningless before the first break has ever ended, where it reads as a time
+ * long past — which is the right answer anyway, since nothing is resting.
+ */
+export const workStartsAt = (schedule: Schedule, config: PomodoroConfig): number =>
+  schedule.nextPlayableAt - config.workMs
+
+/**
+ * How much break is left *after* the level ended. Zero once the work interval
+ * has started.
+ *
+ * The counterpart to {@link breakRemaining}, which measures the same five
+ * minutes from the other end and only while the break clock is running.
+ */
+export const restRemaining = (
+  schedule: Schedule,
+  now: number,
+  config: PomodoroConfig,
+): number => until(workStartsAt(schedule, config), now)
+
+/**
+ * Whether the work interval started recently enough that saying so out loud is
+ * news rather than history.
+ *
+ * The phase below is derived from a clock that only advances while someone is
+ * watching, so `working` is entered when the transition is *noticed*, which is
+ * not always when it happened. Sleep through a break and the tab wakes to a
+ * work interval that began twenty minutes ago; ringing a bell for it announces
+ * the past, at the one moment the player is certainly at the screen. Within
+ * `bellWindowMs` the news is fresh and the player may well be across the room,
+ * which is the case the bell exists for.
+ */
+export const workJustStarted = (
+  schedule: Schedule,
+  now: number,
+  config: PomodoroConfig,
+): boolean => {
+  const since = now - workStartsAt(schedule, config)
+  return since >= 0 && since < config.bellWindowMs
+}
+
+/**
+ * Which of the cycle's three moments it is.
+ *
+ * `resting` is the one phase 7 had no name for and phase 7.5 exists to add: the
+ * level is over — won, lost, or frozen — but the break the player earned is
+ * not, and the work interval has no business starting early. It is a phase of
+ * the *break*, not of the work interval, which is why finishing early can never
+ * shorten or lengthen the wait for the next one.
+ */
+export type Phase = 'playing' | 'resting' | 'working'
+
+export const phaseAt = (schedule: Schedule, now: number, config: PomodoroConfig): Phase => {
+  if (canPlay(schedule, now, config)) return 'playing'
+  return now < workStartsAt(schedule, config) ? 'resting' : 'working'
+}
 
 /**
  * `mm:ss` for a countdown.

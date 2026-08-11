@@ -139,7 +139,7 @@ nothing else.
 canPlay(schedule, now, config) => breaksAvailable(schedule, now, config) > 0
 ```
 
-On break end — win, death, or freeze — set `nextPlayableAt = now + config.workMs`. *(Phase 7.5 narrows this to the freeze: a win or a death should let the rest of the break run rather than starting the work interval early. See [07a-break-payoff.md](07a-break-payoff.md).)* Deliberately *not* `previousNextPlayableAt + workMs`: the interval starts when you stop playing, so a long break doesn't eat into the next work block. Note this fires on freeze too, which is what puts a frozen level's next break a full work interval away rather than immediately.
+On break end — win, death, or freeze — set `nextPlayableAt = now + config.workMs`. *(Superseded 2026-08-11 by phase 7.5, which made all three end at the break's **deadline** rather than at `now`. `endBreak` takes that moment as its argument; every caller goes through `endBreakAtDeadline`, which computes it. See [07a-break-payoff.md](07a-break-payoff.md).)* Deliberately *not* `previousNextPlayableAt + workMs`: the interval starts when you stop playing, so a long break doesn't eat into the next work block. Note this fires on freeze too, which is what puts a frozen level's next break a full work interval away rather than immediately.
 
 ### No banking, expressed as a cap
 
