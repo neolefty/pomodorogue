@@ -1,6 +1,6 @@
 # Pomodorogue — port plan
 
-**Goal:** port [Rogule](https://github.com/chr15m/rogule.com) from ClojureScript to TypeScript/React, then turn it from a once-a-day single-level game into the *break* half of a pomodoro cycle: a five-minute break every 25 minutes, a level that freezes and resumes if it outlasts the break, descend via stairs, permadeath resets to depth 1.
+**Goal:** port [Rogule](https://github.com/chr15m/rogule.com) from ClojureScript to TypeScript/React, then turn it from a once-a-day single-level game into the *break* half of a pomodoro cycle: a five-minute break every 25 minutes, and a level that freezes and resumes if it outlasts the break. When a level ends the player chooses — descend and carry their stuff deeper, or start over at depth 1 — and repeating that choice is what makes the game either a progressive dungeon crawl or the original's one-shot Rogule. Death ends the run either way.
 
 **Status:** port in progress. See the status board at the bottom.
 
@@ -32,6 +32,8 @@ These are working documents for the port, not long-term reference. Delete `docs/
 - **break** — the five minutes of play a cycle earns. Its clock starts on the player's first action, not when the break becomes available.
 - **cycle** — one 25-minute work interval followed by one break.
 - **seed** — `runSeed` is per-run; each level's seed is derived as `hashSeed(runSeed, depth)`.
+- **visit** — a level opened from somebody's shared link. Played with a fresh depth-1 player, scores nothing, and leaves the saved run untouched. Phase 8.5.
+- **progressive** / **fixed** — the two ways the game plays. Neither is a stored mode; see "Two modes, and no mode flag" below. The words appear in these docs and never in the UI.
 
 `GameState` holds exactly one level. Run-scoped things — carried inventory, depth, lifetime statistics — live outside it, in the run state that phase 7 introduces.
 
@@ -54,10 +56,13 @@ Each phase is a doc in `docs/port/`. They are ordered by dependency; do them in 
 | 6 | UI | [06-ui.md](docs/port/06-ui.md) | React components + CSS; **game is playable and matches the original** |
 | 7 | Pomodoro | [07-pomodoro.md](docs/port/07-pomodoro.md) | 25-minute gate, 5-minute level cap, persistence across reloads |
 | 7.5 | Break payoff | [07a-break-payoff.md](docs/port/07a-break-payoff.md) | Finishing early keeps the rest of the break, and a bell ends it |
-| 8 | Depth | [08-depth.md](docs/port/08-depth.md) | Stairs instead of shrine, multi-level runs, difficulty ramp |
+| 8 | Depth | [08-depth.md](docs/port/08-depth.md) | Descend-or-start-over at the end of a level, carry, difficulty ramp |
+| 8.5 | Shared seeds | [08a-shared-seeds.md](docs/port/08a-shared-seeds.md) | The share string names a level, and a link opens it |
 | 9 | Server (deferred) | [09-server.md](docs/port/09-server.md) | Optional backend for AI-generated content. Not built yet — only the seam is. |
 
 **Milestone to aim for:** end of phase 6 is a faithful playable clone. Everything before that is a port with no design changes; everything after is new design. Do not mix the two — a bug found after phase 7 should be answerable with "did this work at phase 6?"
+
+Phase 8 gives that milestone a second life rather than retiring it. Fixed mode *is* the phase-6 game on a pomodoro cadence, so "did this work at phase 6?" stays a live question for as long as a player can choose it — which is why phase 8's difficulty ramp is constrained to leave depth 1 byte-identical.
 
 Phase 5.5 does not break that rule: it changes internal structure only, and its success condition is that no player-visible behavior changes at all. It sits before phase 6 rather than after because phase 6 is what multiplies the call sites — see "Why now" in [05a-simplify.md](docs/port/05a-simplify.md).
 
@@ -89,6 +94,8 @@ A future "play seed 12345" feature is allowed for, not built. What such a seed w
 
 So two players on the same seed walk the same dungeon and have different runs. That is the right split, and it is the reason the two streams are kept apart.
 
+**A seed is therefore shareable, and what it shares is a level.** Phase 8.5 turns the share string into something you can hand somebody — `#Pomodorogue 48213/7`, openable as `?seed=48213&depth=7`. They get the rooms you saw and the monsters you met, played with a fresh depth-1 player: your carry is not in the seed, and neither are your fights. Confirmed 2026-08-11 that the combat stream stays entropy-seeded, so nothing repeats exactly for anyone, including you — **revisit only if players ask for it**, since a seeded combat stream is small to add and large to take back once anyone relies on it. Note the level seed the share string prints today is a one-way hash and names a level nobody can regenerate; see [08a-shared-seeds.md](docs/port/08a-shared-seeds.md).
+
 **The seam for history-dependent generation is a second pass, not a wider request.** Generation is specified as two stages:
 
 1. **Base pass** — `makeBaseLevel(request, content)`, a pure function of `LevelRequest` (`{ runSeed, depth }`) and nothing else. Map geometry, base monster placement, base loot, depth difficulty scaling. This is the whole of phase 4.
@@ -109,6 +116,22 @@ Three invariants make the split hold. Write them into the overlay when it is bui
 - **`ContentProvider` must be pure with respect to its request.** The base pass calls it, so a provider that returns different content for the same `LevelRequest` breaks base determinism from the outside. Phase 9's AI provider satisfies this by caching per `(runSeed, depth)`; see [09-server.md](docs/port/09-server.md).
 
 Phase 4 builds the base pass only. The overlay is a named seam with no implementation — `makeLevel` is just `makeBaseLevel` until the first history feature needs it.
+
+### Two modes, and no mode flag
+
+**Decided 2026-08-11.** The game plays two ways — *progressive* (descend, carry your stuff, see how deep you get) and *fixed* (a fresh depth-1 elf every break, like the original). Neither is a mode, neither is stored, and there is no toggle.
+
+Both are branches of one choice offered when a level ends: **Descend** keeps `runSeed` and increments `depth`; **Start over** mints a new `Run` at depth 1 with no carry. Fixed mode is what you get by taking the second branch every time — which is exactly what the game does unconditionally today, so phase 8 is not adding a mode, it is adding the other button.
+
+Three properties fall out of this, and they are why it beats a setting:
+
+- **The first level is identical either way** — depth 1, no carry, both branches.
+- **Fixed mode needs no special-casing.** The depth ramp is inert at depth 1, carry is skipped when null, the share string shows a depth only when there is one.
+- **Neither mode needs a name in the UI.** The buttons say "Descend" and "Start over".
+
+A settings toggle was rejected: it asks the player to commit before they know what they want, it needs a settings screen the game does not have, and the decision is only ever meaningful at one moment — the moment a level ends. See [08-depth.md](docs/port/08-depth.md).
+
+**The choice takes effect at the next break, not immediately** (decided 2026-08-11). Descending inside the remaining break would hand a fast player two or three levels in five minutes, which both answers open question 6 by accident and makes the depth ramp much harder to tune. What finishing early earns is still the rest of the break, spent away from the screen — see phase 7.5.
 
 ### Entropy is injected at the edge
 
@@ -146,10 +169,10 @@ Answer these when the phase that needs them comes up. Don't block earlier phases
 
 1. ~~**What happens when the 5-minute level timer expires mid-level?**~~ **Answered 2026-08-10: the level freezes and resumes next break.** None of the three options on the table — (a) it kills the run, (b) the level is abandoned and the depth regenerated, (c) no enforcement — were taken. The level persists exactly as it stands, the 25-minute work interval starts, and the next break resumes the same `GameState`: same monsters, same positions, same HP. Nothing is lost for a reason outside the game, and the walk-away exploit that (b) carried disappears, because walking away returns you to the same fight. A level is therefore no longer required to fit in one break. Paired with this: **the break clock starts on the player's first action**, not when the break becomes available, so working past the bell costs you nothing. See "The break clock" in [07-pomodoro.md](docs/port/07-pomodoro.md).
 2. ~~**Can you bank breaks?**~~ **Answered 2026-08-10: no — breaks do not stack.** Skip three cycles and you get one break. But it is expressed as `maxBankedBreaks: 1` in a `PomodoroConfig` rather than as a hardcoded boolean, alongside `workMs` and `breakMs`. Tests need the durations injectable regardless, and a later feature — an account perk, a custom break length — should be a value change rather than a redesign. The config is not exposed in the UI. Raising the cap above 1 needs one further decision, deliberately deferred; see "The gate" in [07-pomodoro.md](docs/port/07-pomodoro.md).
-3. **How does difficulty scale with depth?** The original scales within a level by path distance from the player's start (`pos-to-difficulty`). Depth needs to shift the monster table index too. Needed by phase 8.
+3. **How does difficulty scale with depth?** The original scales within a level by path distance from the player's start (`pos-to-difficulty`). Depth needs to shift the monster table index too. Needed by phase 8, which carries a proposed formula and a hard constraint on it: **depth 1 must generate byte-identical levels to phase 6**, or fixed mode stops being a faithful clone. Settle the weapon-stacking question first — carried weapons stack additively with no cap and nothing is ever consumed, which is what the ramp would have to compensate for.
 4. **Does the run end at some depth, or go forever?** Needed by phase 8.
 5. ~~**Do tile maps stay `PosMap` (`"x,y"`-keyed objects), or become flat arrays?**~~ **Answered 2026-08-10: flat arrays.** `GameMap.floorTiles` is a `Tile[]` of numeric codes indexed `y * w + x`; the branded `PosKey` and its helpers are gone, and the entity index keeps string keys. With §2 in the same pass this took a serialized `GameState` from 19,828 to 11,827 bytes. See the decision note at §3 of [05a-simplify.md](docs/port/05a-simplify.md), which also records the two things that turned out differently from the sketch.
-6. **What does finishing a level early earn, and does it carry?** Raised by Bill on 2026-08-10 after playing phase 7, which gave a fast player nothing for it but a longer wait. **Half-answered 2026-08-11: the longer wait is gone, and no bonus is built.** Phase 7.5 fixed the wait — the work interval now starts when the break was always going to end — and Bill's call was to stop there: *getting to play at all is the bonus for having done the work*, so a second reward inside the break has to earn its place before it is built. The candidates, if it comes back, are a `PlayerCarry` bonus versus a mark on the share string; they pull in opposite directions on balance, so decide alongside phase 8's difficulty ramp. Not blocking anything. See [07a-break-payoff.md](docs/port/07a-break-payoff.md).
+6. **What does finishing a level early earn, and does it carry?** Raised by Bill on 2026-08-10 after playing phase 7, which gave a fast player nothing for it but a longer wait. **Half-answered 2026-08-11: the longer wait is gone, and no bonus is built.** Phase 7.5 fixed the wait — the work interval now starts when the break was always going to end — and Bill's call was to stop there: *getting to play at all is the bonus for having done the work*, so a second reward inside the break has to earn its place before it is built. The candidates, if it comes back, are a `PlayerCarry` bonus versus a mark on the share string; they pull in opposite directions on balance, so decide alongside phase 8's difficulty ramp. **Still open after the phase 8 design (2026-08-11)**, and it now has a third candidate that the design deliberately declined: letting Descend start the next level *inside* the remaining break. That is the first thing to revisit if a reward is wanted, and the reason it was declined — two or three levels in one break makes the ramp much harder to tune — is the thing to weigh. Not blocking anything. See [07a-break-payoff.md](docs/port/07a-break-payoff.md).
 7. **What announces a transition, and how much of it does the player choose?** Raised by Bill on 2026-08-11, after phase 7.5 shipped an unconditional synthesized bell at break → work. Two halves are settled going in: **the end of the break should announce itself**, because that is what lets the player be away from the screen, and it is the only transition that needs a sound; and **the start of a break should not fire a fixed alarm**, because being summoned to play is an interruption rather than a service. Open is everything else — whether the announcement is a tone, a Web Notification, or either at the player's choice; what "pleasant" turns out to mean when heard sixteen times a day; and where settings live, given the game has no settings UI at all. Expect to experiment rather than to decide on paper. Two constraints for whoever picks it up: a Notification reaches a player who has switched applications, where audio from a backgrounded tab can be throttled or suspended outright; and there is currently no way to mute a sound the game plays unprompted, which is the minimum any answer has to fix. Not blocking anything. See "The bell" in [07a-break-payoff.md](docs/port/07a-break-payoff.md) for what is built today.
 
 ---
@@ -176,4 +199,5 @@ Update this as phases land.
 - [x] Phase 7 — Pomodoro — **the game is a pomodoro timer; a run survives a reload**
 - [x] Phase 7.5 — Break payoff — **finishing early keeps the rest of the break, and a bell ends it**
 - [ ] Phase 8 — Depth ← **next**
+- [ ] Phase 8.5 — Shared seeds
 - [ ] Phase 9 — Server (deferred)
