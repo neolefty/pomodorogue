@@ -182,7 +182,12 @@ Answer these when the phase that needs them comes up. Don't block earlier phases
 
 Decided work that no phase owns. Newest first. Anything here is small and unblocked — if it needs a decision first, it belongs in Open questions instead.
 
-*(nothing outstanding)*
+- **Tell the timer states apart at a glance.** Raised by Bill on 2026-08-16: the four timers — `break`, `break.warn`, `work`, `rest`, `next` — differ in size, position and one colour on the digits, which is enough to *read* and not enough to *notice*. The player is meant to be looking away, so the state has to be legible from across the room and out of the corner of an eye, which is the case the current styling is weakest at. Leading candidate, Bill's: a big red tomato behind the work timer, so "back to work" is a shape rather than a word. Worth doing for the break timer's own two states as well, since amber-on-digits is the least visible distinction of the set. Cosmetic only — nothing about the schedule changes.
+- **Test the pomodoro state machine.** `App.tsx` has none, and `AppProps.config` exists solely so "a test can drive a whole 25-minute cycle in milliseconds" — a hook built in phase 7 for a test never written. The pure layers below it are covered well (186 tests); `advance`, `move`, `finishBreak` and the bell edge are the newest and most timing-dependent code in the repo and have nothing. Needs a DOM environment, which the project does not yet have.
+- **Delete `GameState.log`, or render it.** Four sites push to it and nothing reads it outside tests. The original only ever `console.log`'d its `:game-log` (`ui.cljs:24`), so the port is faithful and the feature was never there. It rides along in the persisted level slot, growing all break. Deleting costs a `LEVEL_SLOT` version bump.
+- **Say what the pomodoro is, in the help.** `Help.tsx` is still phase 6's port of the original's help — arrows, monsters, shrine. Nothing in it mentions the gate, the break, the choice at the end of a level, or the bell that is about to ring. A newcomer clears their first level and meets a 25-minute countdown with no explanation of why.
+- **A favicon, and a manifest to go with it.** `public/` is sprites only, so the tab is blank — sixteen times a day, for a game whose whole premise is that its tab is one of the ones you keep. `index.html` also claims `mobile-web-app-capable` with no manifest behind it, so "add to home screen" gets a default icon too.
+- **Reconcile the sprite-regeneration instructions.** `scripts/gen-sprites.ts`'s header says `pnpm add -D emoji.json twemoji-emojis`; `emoji.json` is in fact a permanent devDependency and the Operating facts row above adds and removes only `twemoji-emojis`. One of the two is stale.
 
 Done:
 
