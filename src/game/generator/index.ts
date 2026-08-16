@@ -6,17 +6,17 @@
  * PLAN.md for why this is split into a base pass and a (not yet existing)
  * overlay pass.
  */
+import { applyCarry } from '../carry.ts'
 import { countEntities } from '../entities.ts'
 import { levelSeed, makeRng } from '../rng.ts'
 import type { ContentProvider } from '../content/types.ts'
-import type { GameState, LevelRequest } from '../types.ts'
+import type { GameState, LevelRequest, PlayerCarry } from '../types.ts'
 import { makeEntities } from './entities.ts'
 import { makeDiggerMap } from './map.ts'
+import { dugPercentageFor, entityCountFor, monsterCountFor } from './ramp.ts'
 
-/** The original's `size`, `entity-count` and `monster-count` (ui.cljs:26, generator.cljs:326). */
+/** The original's `size` (ui.cljs:26). The entity counts live in `ramp.ts`. */
 export const LEVEL_SIZE = 32
-export const ENTITY_COUNT = 15
-export const MONSTER_COUNT = 5
 
 /** The collectibles the completion bars track. */
 export const COUNTED_ITEMS = ['mushroom', 'chestnut', 'gem-stone'] as const
@@ -39,7 +39,9 @@ export function makeBaseLevel(request: LevelRequest, content: ContentProvider): 
   // makeDiggerMap, and from the combat stream, which is derived in rng.ts.
   const rng = makeRng('entities', seed)
 
-  const { map, roomTiles, corridorTiles, doorTiles } = makeDiggerMap(seed, LEVEL_SIZE, LEVEL_SIZE)
+  const { map, roomTiles, corridorTiles, doorTiles } = makeDiggerMap(seed, LEVEL_SIZE, LEVEL_SIZE, {
+    dugPercentage: dugPercentageFor(request.depth),
+  })
   // Spawns go on floor only — never in a wall, and never in a doorway. The
   // doorways have to be subtracted explicitly: they are dug and outside every
   // room rect, so `corridorTiles` contains all of them. Leaving them in parks
@@ -55,8 +57,8 @@ export function makeBaseLevel(request: LevelRequest, content: ContentProvider): 
     request,
     content,
     rng,
-    ENTITY_COUNT,
-    MONSTER_COUNT,
+    entityCountFor(request.depth),
+    monsterCountFor(request.depth),
   )
 
   const counts: Record<string, number> = {}
@@ -79,8 +81,22 @@ export function makeBaseLevel(request: LevelRequest, content: ContentProvider): 
 }
 
 /**
- * The level the player actually gets. Identical to the base pass until an
- * overlay exists — call this everywhere except in tests that specifically pin
- * base-pass determinism.
+ * The level the player actually gets: the base pass, plus whatever the player
+ * walked in with.
+ *
+ * The composition is the whole point. Carry is run history, so it may not reach
+ * the base pass — but it has to reach the level, and this is the seam where the
+ * two meet. A real overlay pass, when one lands, composes here in exactly the
+ * same way and for exactly the same reason.
+ *
+ * Call this everywhere except in tests that specifically pin base-pass
+ * determinism.
  */
-export const makeLevel = makeBaseLevel
+export function makeLevel(
+  request: LevelRequest,
+  content: ContentProvider,
+  carry: PlayerCarry | null = null,
+): GameState {
+  const base = makeBaseLevel(request, content)
+  return carry ? applyCarry(base, carry) : base
+}

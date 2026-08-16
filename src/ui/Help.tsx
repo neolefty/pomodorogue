@@ -47,8 +47,15 @@ export function Help({ open, onToggle }: HelpProps) {
       <p>
         Weapons <Tile sprite={SPRITES.dagger} /> add to your hits.
       </p>
+      {/*
+        Not "to descend": reaching the shrine ends the level, and which way you
+        go next is a choice you make afterwards. The original said "to ascend
+        and win the game", which names a direction for the same reason and is
+        wrong here for the same one. See docs/port/08-depth.md.
+      */}
       <p>
-        Get to the shrine <Tile sprite={SPRITES['shinto-shrine']} title="shrine" /> to descend.
+        Get to the shrine <Tile sprite={SPRITES['shinto-shrine']} title="shrine" /> to finish the
+        level.
       </p>
       <Attribution />
     </div>

@@ -29,6 +29,7 @@ import type { Rng } from '../rng.ts'
 import { SPRITES } from '../sprites.ts'
 import type { Entity, EntityId, GameMap, LevelRequest, Room } from '../types.ts'
 import { PLAYER_ID } from '../types.ts'
+import { difficultyAtDepth } from './ramp.ts'
 
 /** The player's starting XP, which doubles as their maximum damage. */
 export const PLAYER_XP = 3
@@ -189,8 +190,14 @@ function placeCoveredItem(b: Builder, g: Placement): void {
   const { room } = g.rng.pick(candidates)
   const tile = g.rng.pick(freeTilesInRoom(room, b))
   const pos = posOfIndex(b.size, tile)
+  // Deliberately unclamped, as the original had it: a difficulty above 1 means
+  // this cover hides nothing at all. `difficultyAtDepth` is applied to the raw
+  // value and cannot introduce a clamp, so depth 1 is untouched.
   const difficulty =
-    posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable) * ITEM_DIFFICULTY_SCALE
+    difficultyAtDepth(
+      posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable),
+      g.request.depth,
+    ) * ITEM_DIFFICULTY_SCALE
 
   // The template is drawn whether or not the cover turns out to hide anything,
   // as in the original — keeping the stream position independent of the roll.
@@ -249,8 +256,14 @@ function placeMonster(b: Builder, g: Placement): void {
   // The original threw on a full map; skipping is divergence 2 in the port doc.
   if (b.freeTiles.size === 0) return
   const pos = posOfIndex(b.size, takeFreeTile(b, g.rng))
+  // The clamp is `placeMonster`'s own and stays exactly where it was, *after*
+  // the scale — `placeCoveredItem` has no equivalent, and moving either would
+  // change depth-1 placement. Depth raises the floor under the raw value only.
   const difficulty = Math.min(
-    posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable) * MONSTER_DIFFICULTY_SCALE,
+    difficultyAtDepth(
+      posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable),
+      g.request.depth,
+    ) * MONSTER_DIFFICULTY_SCALE,
     1,
   )
 

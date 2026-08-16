@@ -2,7 +2,14 @@
 
 **Outcome:** a finished level offers a choice — descend, or start over at depth 1 — and that one choice, repeated, is what makes the game either a progressive dungeon crawl or the original's one-shot Rogule. HP/inventory/XP carry down the stairs, difficulty ramps with depth, and death ends the run.
 
-**Status:** not started. Requires phases 6 and 7.
+**Status:** landed 2026-08-12. Four things turned out differently from this spec; each is recorded where it belongs below, and collected here:
+
+1. **Carry is the whole inventory, uncapped** — Bill's call, taking the fourth option under "Settle the weapon-stacking question". The hole stays open deliberately; see "Difficulty ramp".
+2. **Carried items had to be marked**, which this doc did not anticipate. `Entity.carried` exists so the completion bars keep counting *this* level. See "What carries between levels".
+3. **Carried ids are re-issued** from the new level's counter. Two levels both allocate from zero, so a carried `e12` and a found `e12` were one React key for two items.
+4. **The confirm step on Start over only appears below depth 1.** Fixed mode is that button pressed every twenty-five minutes, and a confirm there is friction sixteen times a day protecting nothing.
+
+The ramp knobs are guesses and have not been played. `depthFloor`, `monsterCountFor`, `entityCountFor` and `dugPercentageFor` all live in `src/game/generator/ramp.ts` so that tuning is one file; the dev-only Backspace gate skip in `App.tsx` is what makes tuning possible at all.
 
 ## The change in one line
 
@@ -47,7 +54,9 @@ The alternative — a toggle in a settings screen — was rejected. It asks the 
 
 "Retry this dungeon" means the same *run*, from the top: the seed fixes every depth, so you get the same depth-1 level, and the same depth-2 level after it, with the knowledge of what killed you. In fixed mode, where you only ever died at depth 1, that is simply "the same level again". One rule, and it reads correctly in both modes. It is not a free pass — death has already reset your streak and taken your carry.
 
-**The primary button is whichever the player chose last**, remembered as `Run.preferred` and carried forward across runs the way `statistics` is (default `'descend'`). This replaces the idea of de-emphasizing Descend after a few consecutive restarts. Prominence that shifts on a history counter makes a button the player cannot predict; a preference that follows the last choice adapts in one step, is one string instead of a counter, and reverses the instant they change their mind.
+**The primary button is whichever the player chose last**, remembered as `Run.preferred` and carried forward across runs the way `statistics` is (default `'descend'`). This replaces the idea of de-emphasizing Descend after a few consecutive restarts. Prominence that shifts on a history counter makes a button the player cannot predict; a preference that follows the last choice adapts in one step, is one string instead of a counter, and reverses the instant they change their mind. `'retry'` deliberately does not write it — retrying one bad death says nothing about how the player likes to play.
+
+**The confirm step is only asked below depth 1**, which this spec did not qualify. Fixed mode *is* "Start over" pressed every twenty-five minutes, so a confirm at depth 1 would be friction sixteen times a day guarding a run with no carry and no progress to lose. Derived from `run.depth`, not from a mode flag — the same trick as everything else here.
 
 ## The choice takes effect at the next break
 
@@ -102,6 +111,10 @@ where `applyCarry` overwrites the freshly-placed player's `stats` and `inventory
 
 Carried inventory entities keep a stale `pos` from the level where they were picked up. Nothing reads inventory positions — same as the original — so leave them alone rather than inventing a scrub step.
 
+**Their `id`s are a different matter, and this doc missed it.** Every level allocates ids from its own counter starting at zero, so a carried `e12` and a chestnut picked up at the new depth are one React key for two items in the inventory strip. `applyCarry` re-issues each carried id from the new level's `nextEntityId`; nothing outside the inventory refers to them, so it costs nothing.
+
+**Carried items are marked `carried: true`, which this doc also missed.** The completion bars in the share string count held items against *this level's* `counts` — so three carried chestnuts fill a bar for the two this level had, and report a level completed on the strength of a previous one. The flag lets `collectedBar` ask "found here?", which is the question it was always asking; it simply could not be wrong until an inventory could outlive a level. The mark is sticky across descents, because an item carried from depth 2 to depth 5 was not found at depth 5 either.
+
 **Do not restore HP on descent.** Arriving at depth 4 with 3 HP and having to decide whether to fight or run is where the tension lives. The slow regeneration already in the engine (1 HP per 100 moves) is the recovery mechanism, and it means a cautious player can heal by exploring — which is a good use of a five-minute break.
 
 ## Difficulty ramp
@@ -128,7 +141,9 @@ Implementation notes, so these don't surprise mid-phase:
 - Ramping monster *count* and the digger's `dugPercentage` means deriving what are currently module constants from the request: `ENTITY_COUNT`/`MONSTER_COUNT` (`generator/index.ts:18-19`) and `DIGGER_OPTIONS` (`generator/map.ts:19`), with `makeDiggerMap(seed, w, h)` growing an options argument. Three small signature changes, not tuning — budget for them, and make each an identity at depth 1. (The original has a commented-out `;:dugPercentage 0.15 ;TODO: increase this as you go deeper` in `make-digger-map`, so the author was thinking the same thing.)
 - Depth reaches all of this through `LevelRequest.depth`, which the base pass already receives — no new inputs, so the determinism test keeps its "two scalars in, same level out" shape.
 
-**Settle the weapon-stacking question before tuning the ramp.** Carried weapons stack additively (`getWeaponsDmg` sums every `dmg` in inventory) with no cap, and nothing is ever consumed, so across ten levels a player accumulates enough daggers and axes to trivialize everything. Options: cap equipped items, make weapons breakable, or stop generating low-tier weapons at depth. Pick one first, since it changes what the ramp has to compensate for. Note this is a *progressive-mode-only* problem — fixed mode carries nothing — so it must not be solved in a way that changes depth-1 behavior.
+**The weapon-stacking question was asked and deliberately left open. Decided 2026-08-12: carry everything, uncapped, for now.** Carried weapons stack additively (`getWeaponsDmg` sums every `dmg` in inventory) with no cap, and nothing is ever consumed, so across ten levels a player accumulates enough daggers and axes to trivialize everything. Four options were on the table — carry only the best weapon and armour, cap the effect in combat, make weapons breakable, or leave it — and Bill took the last: play it and see how bad it actually gets before paying for a fix.
+
+That makes the ramp's job ambiguous on purpose, and it is the first thing to revisit when the numbers get tuned: **is the deep game too hard, or is the deep player too strong?** The two look identical from a single playthrough and want opposite corrections. Note this remains a *progressive-mode-only* problem — fixed mode carries nothing — so whatever eventually fixes it must not change depth-1 behavior. Of the four, "carry only your best weapon and armour" is the one that satisfies that constraint by construction, since it lives entirely inside `applyCarry`; the combat cap does not, because summing is what the original does within a level too.
 
 ## Death
 
@@ -143,5 +158,6 @@ That makes the tombstone's stat block mode-sensitive, which is the one place the
 
 ## Open questions
 
-- Does a run end at some maximum depth, or continue indefinitely? Indefinite with an escalating ramp is the simpler answer and gives a leaderboard-style "how deep did you get". (PLAN.md open question 4.)
-- Should the shrine also, rarely, offer to *ascend* — end a good run voluntarily and bank it, rather than always ending on a death? Now that the level's end is already a choice screen, this is a third button rather than a new mechanism.
+- ~~Does a run end at some maximum depth, or continue indefinitely?~~ **Answered 2026-08-12: indefinite.** It is the simpler answer, it gives a leaderboard-style "how deep did you get", and it took no code — a cap would have been the thing that needed writing. The ramp is built for it: every knob in `ramp.ts` caps out (around depth 6 for the counts, depth 11 for difficulty), so depth 400 is hard and finite rather than arithmetically absurd, and `monsterCountFor` can never ask for more monsters than there are tiles. What depth 30 actually *feels* like is unknown and needs the same playtesting the ramp does. (PLAN.md open question 4.)
+- **How is the deep game meant to be balanced, given the player gets stronger for free?** New, and the direct consequence of leaving weapon stacking uncapped — see "Difficulty ramp". Blocking nothing, but it is the question the first real playtest has to answer before the ramp numbers can be moved with any confidence.
+- Should the shrine also, rarely, offer to *ascend* — end a good run voluntarily and bank it, rather than always ending on a death? Now that the level's end is already a choice screen, this is a third button rather than a new mechanism. Still open.

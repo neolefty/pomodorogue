@@ -356,7 +356,7 @@ describe('outcomes', () => {
     expect(next.log.at(-1)).toMatchObject({ type: 'outcome', outcome: 'died' })
   })
 
-  it('sets descended when the player reaches the shrine', () => {
+  it('sets cleared when the player reaches the shrine', () => {
     const shrine: Entity = {
       id: 'shrine',
       name: 'shrine',
@@ -366,7 +366,7 @@ describe('outcomes', () => {
       kind: 'shrine',
     }
     const next = takeTurn(makeTestState([player([2, 2]), shrine]), 'right', rng())
-    expect(next.outcome).toBe('descended')
+    expect(next.outcome).toBe('cleared')
     // The shrine blocks, so the player never actually steps onto the tile.
     expect(next.entities[PLAYER_ID]!.pos).toEqual([2, 2])
   })
@@ -709,7 +709,7 @@ describe('against a generated level', () => {
       )
       walked = takeTurn(walked, dir ?? null, dice)
     }
-    expect(walked.outcome).toBe('descended')
+    expect(walked.outcome).toBe('cleared')
   })
 })
 

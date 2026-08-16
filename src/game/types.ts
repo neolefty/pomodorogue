@@ -120,6 +120,19 @@ export interface Entity {
   stats?: Stats
   /** Present on the player only. Weapons and armour in here apply automatically. */
   inventory?: Entity[]
+  /**
+   * Set on an inventory item the player brought down the stairs rather than
+   * found here. Never set on anything in `entities` — only inside a carry.
+   *
+   * It exists for the completion bars. `collectedBar` counts held items against
+   * *this level's* `counts`, so three carried chestnuts would fill a bar for two
+   * the player never picked up — or, worse, report a level completed on the
+   * strength of a previous one. The flag lets the bars ask "found here?", which
+   * is the question they were always asking; it just had no way to be wrong
+   * before a run spanned levels. Sticky across descents on purpose: an item
+   * carried from depth 2 to depth 5 was not found at depth 5 either.
+   */
+  carried?: true
 
   /** Weapon damage, summed across inventory. */
   dmg?: number
@@ -233,7 +246,31 @@ export interface LevelRequest {
 
 // ***** game state ***** //
 
-export type Outcome = 'died' | 'descended'
+/**
+ * How a level ended — and deliberately not which way the player then went.
+ *
+ * The port said `'descended'` here where the original said `:ascended`, both of
+ * which name a *direction*. Since phase 8 the direction is chosen on the screen
+ * after the level, so neither word can be decided at the moment the shrine is
+ * touched. `'cleared'` is what the shrine actually knows. See "The shrine stays
+ * a shrine" in docs/port/08-depth.md.
+ */
+export type Outcome = 'died' | 'cleared'
+
+/**
+ * What the player takes down the stairs: their condition and their pack.
+ *
+ * Lives on `Run`, not on `GameState` — it is run history, and `GameState` holds
+ * exactly one level. It reaches a new level through `applyCarry`, a post-pass
+ * that runs *after* the base generator, never as an input to it: carry is
+ * history, and history is what {@link LevelRequest} exists to keep out. See
+ * "What carries between levels" in docs/port/08-depth.md.
+ */
+export interface PlayerCarry {
+  stats: Stats
+  /** There is no separate item type — inventory entries are entities. */
+  inventory: Entity[]
+}
 
 export interface Statistics {
   runs: number
@@ -252,6 +289,16 @@ export const emptyStatistics = (): Statistics => ({
   streak: 0,
   maxStreak: 0,
 })
+
+/**
+ * Levels that reached an ending, either one. Derived rather than stored — every
+ * level ends cleared or died, and a level still frozen mid-break has not ended.
+ *
+ * This is what `runs` used to count, back when one level was one run. Since
+ * phase 8 `runs` counts runs, so the screens that want "how many times have I
+ * played this" ask for this instead.
+ */
+export const levelsPlayed = (stats: Statistics): number => stats.levelsCleared + stats.deaths
 
 export type LogEntry =
   | { type: 'start'; seed: number; depth: number }

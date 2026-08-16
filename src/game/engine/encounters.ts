@@ -76,7 +76,14 @@ export function uncoverItem(
 }
 
 /**
- * Reaching the shrine ends the level.
+ * Reaching the shrine ends the level — and says nothing about what happens
+ * next.
+ *
+ * The shrine is touched *before* the player chooses whether to go deeper or
+ * start again, so it cannot know whether it is a staircase down or a shrine to
+ * walk away from. `'cleared'` is the one reading both agree on, which is why it
+ * is not `'descended'` and why the entity is still a shrine. See "The shrine
+ * stays a shrine" in docs/port/08-depth.md.
  *
  * Like the original this does not check that the mover is the player — nothing
  * else can reach the shrine, because it sits on the `occupy` layer and
@@ -86,7 +93,7 @@ export function uncoverItem(
  * layer reacts to `outcome`. See docs/port/05-engine.md.
  */
 export function finishLevel(draft: Draft<GameState>): boolean {
-  draft.outcome = 'descended'
-  draft.log.push({ type: 'outcome', outcome: 'descended', moves: draft.moves })
+  draft.outcome = 'cleared'
+  draft.log.push({ type: 'outcome', outcome: 'cleared', moves: draft.moves })
   return true
 }

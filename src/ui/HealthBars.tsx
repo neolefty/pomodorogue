@@ -6,6 +6,7 @@
  * turn. `state.combatants` is cleared at the top of each turn, so the bars are
  * a view of *this* exchange, not a running tally.
  */
+import { memo } from 'react'
 import { getPlayer } from '../game/entities.ts'
 import { SPRITES } from '../game/sprites.ts'
 import type { Entity, GameState } from '../game/types.ts'
@@ -14,12 +15,13 @@ import { Tile } from './Tile.tsx'
 /**
  * One entity's bar: its face, its xp, then one square per point of max health.
  *
- * **Not memoized, deliberately.** The original memoized on the entity value and
- * got away with it because combat re-copied its combatants every round, so the
- * "value" changed with the HP. `combatants` holds stable ids now while HP moves
- * underneath them, so the same trick would render a bar frozen at full health
- * forever. There are a few dozen squares on screen in a turn-based game; the
- * memo was never what made this fast. See "Health bars" in docs/port/06-ui.md.
+ * **Not memoized, deliberately** — this bar, not the container below it, which
+ * is. The original memoized on the entity value and got away with it because
+ * combat re-copied its combatants every round, so the "value" changed with the
+ * HP. `combatants` holds stable ids now while HP moves underneath them, so the
+ * same trick would render a bar frozen at full health forever. There are a few
+ * dozen squares on screen in a turn-based game; the memo was never what made
+ * this fast. See "Health bars" in docs/port/06-ui.md.
  */
 function HealthBar({ entity }: { entity: Entity }) {
   const stats = entity.stats
@@ -42,7 +44,18 @@ function HealthBar({ entity }: { entity: Entity }) {
   )
 }
 
-export function HealthBars({ state }: { state: GameState }) {
+/**
+ * Memoized on `state`, which is the distinction the bar above turns on.
+ *
+ * The leaf cannot be memoized because its prop is an entity reached through an
+ * id, and the id does not change when the HP does. This one takes the Immer
+ * root itself: a new object whenever any of that HP moves, the same object when
+ * none of it has. So it is exactly the original's value-memo, restored at the
+ * level where the props really are values — and it is what keeps App's 1 Hz
+ * pomodoro tick from re-rendering the bars every second. See the same note on
+ * Board.tsx.
+ */
+export const HealthBars = memo(function HealthBars({ state }: { state: GameState }) {
   const player = getPlayer(state)
   if (!player) return null
 
@@ -67,4 +80,4 @@ export function HealthBars({ state }: { state: GameState }) {
       })}
     </div>
   )
-}
+})

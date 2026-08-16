@@ -45,9 +45,25 @@ interface KeyboardActions {
   onMove: (dir: Dir | null) => void
   onToggleHelp: () => void
   onCloseHelp: () => void
+  /**
+   * Backspace opens the pomodoro gate on the spot, for tuning the depth ramp
+   * without living through a level every twenty-five minutes.
+   *
+   * `null` in production, where the caller must not pass a function at all —
+   * which is the point of the type: there is no flag to get wrong at this end,
+   * only a callback that either exists or does not. The original gated the same
+   * key on `localhost` (`ui.cljs:328-329`).
+   */
+  onSkipGate: (() => void) | null
 }
 
-export function useKeyboard({ helpOpen, onMove, onToggleHelp, onCloseHelp }: KeyboardActions): void {
+export function useKeyboard({
+  helpOpen,
+  onMove,
+  onToggleHelp,
+  onCloseHelp,
+  onSkipGate,
+}: KeyboardActions): void {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       // A modifier means the key belongs to the browser — ⌘R is a reload, not a
@@ -60,6 +76,8 @@ export function useKeyboard({ helpOpen, onMove, onToggleHelp, onCloseHelp }: Key
         onCloseHelp()
       } else if (helpOpen) {
         return
+      } else if (event.key === 'Backspace' && onSkipGate) {
+        onSkipGate()
       } else if (event.key === '.') {
         onMove(null)
       } else {
@@ -74,5 +92,5 @@ export function useKeyboard({ helpOpen, onMove, onToggleHelp, onCloseHelp }: Key
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [helpOpen, onMove, onToggleHelp, onCloseHelp])
+  }, [helpOpen, onMove, onToggleHelp, onCloseHelp, onSkipGate])
 }

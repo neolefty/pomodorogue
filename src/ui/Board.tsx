@@ -6,7 +6,10 @@
  * map. The opacity gradient *is* the fog of war — there is no separate
  * visibility pass. Re-rendering all ~324 cells every keypress is fine and is
  * what the original does; do not add virtualization.
+ *
+ * Every keypress is not every render, though — see the memo on the export.
  */
+import { memo } from 'react'
 import { entitiesAt, entitiesByPos, getPlayer } from '../game/entities.ts'
 import { tileAt } from '../game/grid.ts'
 import { distanceSq, posKey } from '../game/pos.ts'
@@ -118,7 +121,22 @@ function Cell({
   )
 }
 
-export function Board({ state, onAnimationEnd }: BoardProps) {
+/**
+ * Memoized because App re-renders once a second.
+ *
+ * Phase 7 put a live timer on screen beside a live board, so App's `now` ticks
+ * at 1 Hz for as long as the tab is open — through the whole 25-minute work
+ * interval, when nothing here can possibly change. Without this the ~324 cells
+ * are reconciled every second forever.
+ *
+ * Safe on identity alone: `state` is an Immer root, replaced whenever anything
+ * in it changes and reused when nothing does, and `onAnimationEnd` is a stable
+ * `useCallback`. That is the same value-equality the original's `memoize` in
+ * `ui.cljs` leaned on — applied to the whole board, where the props really are
+ * values, rather than to a leaf holding ids. See HealthBars.tsx on why the leaf
+ * is the one place it does not hold.
+ */
+export const Board = memo(function Board({ state, onAnimationEnd }: BoardProps) {
   const player = getPlayer(state)
   if (!player) return null
 
@@ -181,4 +199,4 @@ export function Board({ state, onAnimationEnd }: BoardProps) {
       </div>
     </div>
   )
-}
+})

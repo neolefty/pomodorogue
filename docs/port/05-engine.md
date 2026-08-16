@@ -160,7 +160,7 @@ Death does five things in one place in the original (`engine.cljs:307-316`): set
 - A monster that moves several tiles and is then killed drops its loot **where it died**, not where it spawned (the `move-to` trap above).
 - Combatants: a survived exchange records the monster exactly once (hit plus retaliation, one key) and never the player; a fatal exchange records nothing.
 - Stripped fns are *absent keys*, not `undefined` values — the round-trip test would catch it eventually; assert it directly at the kill site.
-- Player death sets `outcome: 'died'`; the shrine sets `outcome: 'descended'`.
+- Player death sets `outcome: 'died'`; the shrine sets `outcome: 'descended'` — renamed to `'cleared'` in phase 8, when the direction became the player's to choose afterwards.
 - A rest (`dir = null`) and a bump into a monster each advance `moves` by exactly 1; a walk into a wall advances it by 0.
 
 All of the above are in `src/game/engine/engine.test.ts`, plus a fuzz block that

@@ -42,7 +42,7 @@ function makeState(over: Partial<GameState> = {}): GameState {
     nextEntityId: 100,
     moves: 12,
     combatants: {},
-    outcome: 'descended',
+    outcome: 'cleared',
     counts: {},
     log: [],
     ...over,
@@ -75,7 +75,7 @@ describe('share string', () => {
       entities: { [PLAYER_ID]: player({ killedBy: { name: 'the wolf', sprite: SPRITES.wolf } }) },
     }
     expect(shareText(makeState({ ...killed, outcome: 'died' }), stats())).toContain('🐺')
-    expect(shareText(makeState({ ...killed, outcome: 'descended' }), stats())).not.toContain('🐺')
+    expect(shareText(makeState({ ...killed, outcome: 'cleared' }), stats())).not.toContain('🐺')
   })
 
   // Half resolution: one square per two points, so a long bar still fits a post.
@@ -123,6 +123,35 @@ describe('share string', () => {
       const text = shareText(makeState({ entities: held, counts: { mushroom: 2 } }), stats())
       expect(text).not.toContain('💎')
       expect(text).not.toContain('🌰')
+    })
+
+    // Since phase 8 an inventory can contain things found somewhere else, and
+    // the bar is a claim about *this* level. Counting a carried mushroom would
+    // report a level completed on the strength of a previous one.
+    it('does not fill the bar with items carried down the stairs', () => {
+      const walkedIn = {
+        [PLAYER_ID]: player({
+          inventory: [
+            { ...item('i1', 'mushroom'), carried: true as const },
+            { ...item('i2', 'mushroom'), carried: true as const },
+            item('i3', 'mushroom'),
+          ],
+        }),
+      }
+      const text = shareText(makeState({ entities: walkedIn, counts: { mushroom: 2 } }), stats())
+      expect(text).toContain('🍄⬜')
+      expect(text).not.toContain('🍄🍄')
+    })
+  })
+
+  describe('depth', () => {
+    // Fixed mode never leaves depth 1, so its string stays byte-identical to
+    // phase 6's — the same test the tombstone uses to hide its run lines.
+    it('names the depth only once there is one worth naming', () => {
+      expect(shareText(makeState(), stats()).split('\n')[0]).toBe('#Pomodorogue 4242')
+      expect(shareText(makeState({ depth: 4 }), stats()).split('\n')[0]).toBe(
+        '#Pomodorogue 4242 depth 4',
+      )
     })
   })
 })

@@ -122,8 +122,10 @@ five-things-on-death check.
 These docs are the spec future sessions execute from, so drift is costlier
 than usual:
 
-- `08-depth.md` says "instead of setting `outcome: 'ascended'`" — `types.ts`
-  already renamed it `'descended'`.
+- ~~`08-depth.md` says "instead of setting `outcome: 'ascended'`" — `types.ts`
+  already renamed it `'descended'`.~~ Settled by phase 8, which landed on a
+  third name: `'cleared'`, because neither direction is known when the shrine
+  is touched.
 - `03-core.md` describes a "structuredClone-equality test"; the actual test is
   JSON round-trip (`types.test.ts`).
 - `03-core.md`'s `Rng` sketch has `pickKey`; the implementation is `pickPos`.

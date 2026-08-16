@@ -22,21 +22,46 @@
  * `runEncounter` exists to catch real bugs during development and stays as it
  * is.
  */
-import type { GameState, Statistics } from '../game/types.ts'
+import type { GameState, PlayerCarry, Statistics } from '../game/types.ts'
 import { PLAYER_ID } from '../game/types.ts'
 import type { Schedule } from './schedule.ts'
 
 /**
- * A run: the seed that fixes its dungeon, how deep it has got, and its totals.
+ * What the player picked at the end of a level.
  *
- * `carry` is what the player takes down the stairs. It is always null until
- * phase 8 defines `PlayerCarry` ([docs/port/08-depth.md]) and widens the type;
- * it is here now so the persisted shape does not change underneath that phase.
+ * `'retry'` means the same *run* from the top: the seed fixes every depth, so
+ * you get the same depth-1 level and the same depth-2 level after it, knowing
+ * what killed you. In fixed mode, where you only ever died at depth 1, that
+ * reads simply as "the same level again" — one rule, correct in both modes.
+ */
+export type RunChoice = 'descend' | 'restart' | 'retry'
+
+/**
+ * A run: the seed that fixes its dungeon, how deep it has got, what the player
+ * is carrying, and their totals.
+ *
+ * `next` and `preferred` look alike and are not, which is the one thing to keep
+ * straight here:
+ *
+ * - **`next`** is a pending action *on this run*, written when the player
+ *   chooses and consumed once, when the next break opens. Null means they have
+ *   not chosen — which is the normal state of a player who took their break
+ *   away from the screen, and it is why nothing defaults behind their back.
+ * - **`preferred`** is a standing preference that outlives runs, like
+ *   `statistics`. It decides only which button the choice screen leads with.
  */
 export interface Run {
   runSeed: number
   depth: number
-  carry: null
+  /** What the player brought into the *current* `depth`. Null at depth 1. */
+  carry: PlayerCarry | null
+  next: RunChoice | null
+  /**
+   * Which of the two standing choices the player took last. Not `RunChoice`:
+   * `'retry'` is a reaction to one death rather than a way of playing, so it
+   * leaves this alone.
+   */
+  preferred: 'descend' | 'restart'
   statistics: Statistics
 }
 
@@ -53,14 +78,21 @@ interface Slot {
   /**
    * Bump when the slot's shape changes. For `level` that means: entity kinds
    * change, `TILE` codes change, or `GameState` gains, loses or reshapes a
-   * field. Phase 8 bumps it for the `'shrine'` → `'stairs'` rename.
+   * field — and also when a persisted string keeps its *shape* and changes its
+   * *meaning*, which is the subtler case and the one phase 8 hit.
    */
   schemaVersion: number
 }
 
 const SCHEDULE_SLOT: Slot = { key: 'pomodorogue.schedule', schemaVersion: 1 }
-const RUN_SLOT: Slot = { key: 'pomodorogue.run', schemaVersion: 1 }
-const LEVEL_SLOT: Slot = { key: 'pomodorogue.level', schemaVersion: 1 }
+/** v2: phase 8 gave `Run` its `next` and `preferred`, and `carry` a real type. */
+const RUN_SLOT: Slot = { key: 'pomodorogue.run', schemaVersion: 2 }
+/**
+ * v2: phase 8 renamed the `'descended'` outcome to `'cleared'`. Nothing about
+ * the shape changed, which is exactly the danger — a v1 level would load
+ * cleanly and then show a choice screen whose every branch reads false.
+ */
+const LEVEL_SLOT: Slot = { key: 'pomodorogue.level', schemaVersion: 2 }
 
 /**
  * localStorage, or null where the browser refuses it — Safari's private mode
@@ -139,12 +171,37 @@ function isStatistics(value: unknown): boolean {
   return isObject(value) && STATISTIC_FIELDS.every((field) => isNumber(value[field]))
 }
 
+/**
+ * Shape only, like {@link isLevel} — the version is what catches a carry whose
+ * *meaning* moved. `inventory` is not walked entry by entity: the worst a
+ * malformed item can do is render as a blank tile and add nothing to a damage
+ * total, where the player and the level it lands in are already validated.
+ */
+function isCarry(value: unknown): boolean {
+  if (value === null) return true
+  if (!isObject(value)) return false
+  const stats: unknown = value.stats
+  return (
+    isObject(stats) &&
+    isObject(stats.hp) &&
+    isNumber((stats.hp as Record<string, unknown>).cur) &&
+    isNumber((stats.hp as Record<string, unknown>).max) &&
+    isNumber(stats.xp) &&
+    isNumber(stats.hpInc) &&
+    Array.isArray(value.inventory)
+  )
+}
+
+const RUN_CHOICES = ['descend', 'restart', 'retry']
+
 function isRun(value: unknown): boolean {
   return (
     isObject(value) &&
     isNumber(value.runSeed) &&
     isNumber(value.depth) &&
-    value.carry === null &&
+    isCarry(value.carry) &&
+    (value.next === null || RUN_CHOICES.includes(value.next as string)) &&
+    (value.preferred === 'descend' || value.preferred === 'restart') &&
     isStatistics(value.statistics)
   )
 }

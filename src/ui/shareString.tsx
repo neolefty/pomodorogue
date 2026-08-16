@@ -33,8 +33,15 @@ export interface ShareRender<T> {
 }
 
 /**
- * One "3 of 5 mushrooms" row: a filled sprite per item held, a blank per item
+ * One "3 of 5 mushrooms" row: a filled sprite per item found, a blank per item
  * still out there. Emits nothing at all when the level had none of them.
+ *
+ * **Counts only what was found *here*.** `counts` is this level's tally, so
+ * anything carried down the stairs has to come out of the held side or the two
+ * halves are counting different things — three carried chestnuts would fill a
+ * bar for the two this level actually had, and report a level completed on the
+ * strength of a previous one. Phase 8 is where this became possible; before it,
+ * every item in the inventory was found in the level being described.
  */
 function collectedBar<T>(
   render: ShareRender<T>,
@@ -45,7 +52,10 @@ function collectedBar<T>(
 ): T[] {
   const total = counts[name] ?? 0
   if (total === 0) return []
-  const held = countEntities(inventory, name)
+  const held = countEntities(
+    inventory.filter((item) => !item.carried),
+    name,
+  )
   return Array.from({ length: total }, (_, i) =>
     render.sprite(i >= held ? SPRITES['white-large-square'] : sprite),
   )
@@ -59,19 +69,26 @@ export function makeShareString<T>(
   const player = getPlayer(state)
   const stats = player?.stats
   const inventory = player?.inventory ?? []
-  const won = state.outcome === 'descended'
+  const cleared = state.outcome === 'cleared'
 
   const out: T[] = [
-    render.text(`#Pomodorogue ${state.seed}`),
+    // The depth appears only when there is one worth naming, which is the same
+    // test the tombstone's run lines use and the reason fixed mode needs no
+    // flag to suppress it — a fixed-mode string is byte-identical to phase 6's.
+    //
+    // The number is the *level* seed, which is a one-way hash of the run seed
+    // and the depth: it names a level nobody can regenerate. Phase 8.5 replaces
+    // it with the `runSeed/depth` pair that can actually be opened.
+    render.text(`#Pomodorogue ${state.seed}${state.depth > 1 ? ` depth ${state.depth}` : ''}`),
     render.br,
 
     render.sprite(SPRITES.elf),
     render.text(` ${stats?.xp ?? 0}xp `),
 
-    // Shrine if they made it down, skull if they did not — and in that case the
+    // Shrine if they reached it, skull if they did not — and in that case the
     // face of whatever did it.
-    render.sprite(won ? SPRITES['shinto-shrine'] : SPRITES['skull-and-crossbones']),
-    ...(!won && player?.killedBy ? [render.sprite(player.killedBy.sprite)] : []),
+    render.sprite(cleared ? SPRITES['shinto-shrine'] : SPRITES['skull-and-crossbones']),
+    ...(!cleared && player?.killedBy ? [render.sprite(player.killedBy.sprite)] : []),
     render.text(` ${state.moves} `),
     render.sprite(SPRITES.footprints),
     render.br,

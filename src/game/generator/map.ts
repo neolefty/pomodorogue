@@ -18,6 +18,19 @@ import { TILE } from '../types.ts'
 /** Matches the original's `{:corridorLength [1 5]}`; every other option is rot-js's default. */
 const DIGGER_OPTIONS = { corridorLength: [1, 5] as [number, number] }
 
+/**
+ * The digger settings a caller may vary. Everything absent stays as
+ * {@link DIGGER_OPTIONS} and rot-js's defaults leave it.
+ *
+ * Only `dugPercentage` so far, which phase 8 ramps with depth. Kept as a struct
+ * rather than a bare number so the next knob is a field rather than a fourth
+ * positional argument.
+ */
+export interface DiggerTuning {
+  /** Fraction of the map to dig out. rot-js's own default is 0.2. */
+  dugPercentage?: number
+}
+
 /** The map, plus the tile sets only generation needs. */
 export interface DiggerMap {
   map: GameMap
@@ -47,9 +60,14 @@ export interface DiggerMap {
  * which is why its levels were not actually reproducible; here it comes from the
  * level seed.
  */
-export function makeDiggerMap(seed: number, w: number, h: number): DiggerMap {
+export function makeDiggerMap(
+  seed: number,
+  w: number,
+  h: number,
+  tuning: DiggerTuning = {},
+): DiggerMap {
   seedGlobalRotRng('map', seed, w, h)
-  const digger = new RotMap.Digger(w, h, DIGGER_OPTIONS)
+  const digger = new RotMap.Digger(w, h, { ...DIGGER_OPTIONS, ...tuning })
   const size: Pos = [w, h]
 
   // Every dug tile, room and corridor alike — the digger's own view of the map.

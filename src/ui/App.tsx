@@ -22,7 +22,9 @@ import { getPlayer } from '../game/entities.ts'
 import { makeLevel } from '../game/generator/index.ts'
 import type { Rng } from '../game/rng.ts'
 import { makeRng } from '../game/rng.ts'
+import { levelsPlayed } from '../game/types.ts'
 import type { EntityId, GameState, Statistics } from '../game/types.ts'
+import type { Run, RunChoice } from '../pomodoro/persistence.ts'
 import type { PomodoroConfig, Schedule } from '../pomodoro/schedule.ts'
 import {
   breakEnding,
@@ -37,7 +39,8 @@ import {
   timeUntilBreak,
   workJustStarted,
 } from '../pomodoro/schedule.ts'
-import { newRun, randomSeed, usePomodoro } from '../pomodoro/usePomodoro.ts'
+import { advanceRun, randomSeed } from '../pomodoro/run.ts'
+import { usePomodoro } from '../pomodoro/usePomodoro.ts'
 import { ArrowButtons } from './ArrowButtons.tsx'
 import { Board } from './Board.tsx'
 import { HealthBars } from './HealthBars.tsx'
@@ -53,9 +56,11 @@ import { useKeyboard } from './useKeyboard.ts'
  * the player off the screen, so this is the one place the game argues against
  * itself.
  *
- * Picked by play count rather than at random — no entropy needed, and a player
- * doing this sixteen times a day sees a different line each time rather than
- * the same one until it stops registering.
+ * Picked by levels played rather than at random — no entropy needed, and a
+ * player doing this sixteen times a day sees a different line each time rather
+ * than the same one until it stops registering. Levels, not `runs`: a
+ * progressive run can span a whole day, and keying on it would show one line
+ * all day.
  */
 const ENCOURAGEMENT = [
   'Rest your eyes on something further away than this.',
@@ -67,16 +72,20 @@ const ENCOURAGEMENT = [
 /**
  * Folds a finished level into the run's running totals.
  *
- * Phase 8 gives a run more than one level, at which point `runs` stops meaning
- * "levels played". Until then one level is one run.
+ * Every counter here is per-level except `runs`, which is per-*run* since phase
+ * 8 gave a run more than one level. A death is one of the two ways a run ends,
+ * so it is counted here; the other way — walking away from a live run by
+ * starting over — is counted in `advanceRun`, which is the only place that can
+ * see it happen. `maxDepth` is the score for a game shaped like this one; the
+ * original's win percentage stops meaning much once a run spans levels.
  */
 function recordOutcome(stats: Statistics, state: GameState): Statistics {
-  const won = state.outcome === 'descended'
-  const streak = won ? stats.streak + 1 : 0
+  const cleared = state.outcome === 'cleared'
+  const streak = cleared ? stats.streak + 1 : 0
   return {
-    runs: stats.runs + 1,
-    deaths: won ? stats.deaths : stats.deaths + 1,
-    levelsCleared: won ? stats.levelsCleared + 1 : stats.levelsCleared,
+    runs: cleared ? stats.runs : stats.runs + 1,
+    deaths: cleared ? stats.deaths : stats.deaths + 1,
+    levelsCleared: cleared ? stats.levelsCleared + 1 : stats.levelsCleared,
     maxDepth: Math.max(stats.maxDepth, state.depth),
     streak,
     maxStreak: Math.max(stats.maxStreak, streak),
@@ -154,11 +163,27 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
       // A live level plays on, across break boundaries and reloads alike.
       if (current.level !== null && current.level.outcome === null) return
 
-      // Nothing live to play. Either the last level ended — a new run, and so a
-      // new dungeon — or there is no level at all: a first visit, or one whose
-      // saved version no longer matched and was discarded on load, which
-      // regenerates at the same depth.
-      const nextRun = current.level === null ? current.run : newRun(current.run.statistics)
+      // Nothing live to play, which is two quite different situations.
+      let nextRun: Run
+      if (current.level === null) {
+        // No level at all: a first visit, or one whose saved version no longer
+        // matched and was discarded on load. Regenerate at the run's own depth,
+        // with the carry it already holds. A choice pending against a level
+        // that no longer exists cannot be honoured — descending has nothing
+        // left to snapshot — so it is dropped rather than half-applied.
+        nextRun = current.run.next === null ? current.run : { ...current.run, next: null }
+      } else {
+        // The last level ended and the choice screen is up. Phase 7 minted a
+        // new run here unconditionally, which is exactly the "start over"
+        // branch — the difference now is that the player picks. Until they do
+        // there is nothing to generate, and choosing nothing is the normal
+        // state of someone spending their break away from the screen, which is
+        // what the break is for. See "The choice takes effect at the next
+        // break" in docs/port/08-depth.md.
+        if (current.run.next === null) return
+        nextRun = advanceRun(current.run, current.run.next, current.level)
+      }
+
       rngRef.current = null
       // Help can be toggled on from the tombstone, where nothing renders it —
       // left set, it would cover the new level's first frame, and `useKeyboard`
@@ -166,10 +191,35 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
       setHelpOpen(false)
       update({
         run: nextRun,
-        level: makeLevel({ runSeed: nextRun.runSeed, depth: nextRun.depth }, builtinContent),
+        level: makeLevel(
+          { runSeed: nextRun.runSeed, depth: nextRun.depth },
+          builtinContent,
+          nextRun.carry,
+        ),
       })
     },
     [config, finishBreak, read, update],
+  )
+
+  /**
+   * Records the player's end-of-level choice. It does not act on it.
+   *
+   * `advance` consumes `run.next` when the next break opens, which is a real
+   * wait: the gate shuts the moment a level ends (`endBreakAtDeadline`), so
+   * pressing Descend cannot start a second level inside the same break. That
+   * restraint is deliberate — a fast player clearing three levels in five
+   * minutes would make the depth ramp far harder to tune, and what finishing
+   * early earns is the rest of the break, away from the screen.
+   */
+  const choose = useCallback(
+    (choice: RunChoice) => {
+      const current = read()
+      // Only ever offered from the end-of-level screen; the guard is what makes
+      // that structural rather than a fact about the current markup.
+      if (current.level === null || current.level.outcome === null) return
+      update({ run: { ...current.run, next: choice } })
+    },
+    [read, update],
   )
 
   // The clock drives the machine. `now` ticks once a second and on every return
@@ -233,7 +283,31 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
   const toggleHelp = useCallback(() => setHelpOpen((open) => !open), [])
   const closeHelp = useCallback(() => setHelpOpen(false), [])
 
-  useKeyboard({ helpOpen, onMove: move, onToggleHelp: toggleHelp, onCloseHelp: closeHelp })
+  /**
+   * Opens the gate immediately, in development builds only.
+   *
+   * Phase 8's difficulty ramp cannot be tuned at one level per twenty-five
+   * minutes — reaching depth 10 honestly is most of a working day. The original
+   * had the same escape hatch for the same reason, as a localhost-only
+   * backspace handler (`ui.cljs:328-329`).
+   *
+   * A fresh break rather than a resumed one: `nextPlayableAt: 0` makes the gate
+   * open and `breakStartedAt: null` leaves the five minutes unspent, so the
+   * skip is indistinguishable from having waited.
+   */
+  const skipGate = useCallback(() => {
+    update({ schedule: { nextPlayableAt: 0, breakStartedAt: null } })
+  }, [update])
+
+  useKeyboard({
+    helpOpen,
+    onMove: move,
+    onToggleHelp: toggleHelp,
+    onCloseHelp: closeHelp,
+    // Stripped from production bundles entirely: Vite replaces the flag with a
+    // literal, so the branch and the callback both fold away.
+    onSkipGate: import.meta.env.DEV ? skipGate : null,
+  })
 
   // Spent smoke puffs and collision markers clear themselves as their
   // animations end — the engine's second entry point, so that this never has to
@@ -282,7 +356,8 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
     return (
       <Tombstone
         state={level}
-        statistics={run.statistics}
+        run={run}
+        onChoose={choose}
         footer={
           phase === 'resting' ? (
             // The level is over and the break is not. Phase 7 sent the player
@@ -294,7 +369,9 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
                 label="rest of your break"
                 remainingMs={restRemaining(schedule, now, config)}
               />
-              <p className="away">{ENCOURAGEMENT[run.statistics.runs % ENCOURAGEMENT.length]}</p>
+              <p className="away">
+                {ENCOURAGEMENT[levelsPlayed(run.statistics) % ENCOURAGEMENT.length]}
+              </p>
             </>
           ) : (
             <Timer

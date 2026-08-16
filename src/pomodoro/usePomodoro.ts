@@ -4,35 +4,14 @@
  *
  * Deliberately knows nothing about the game. It holds the level as opaque
  * `GameState`, never generates or advances one — that is App's job, because
- * only App has the content provider and the combat stream.
- *
- * This is also where entropy enters the run: `randomSeed` is the edge's job,
- * never the engine's. Nothing under `src/game/` may call `Math.random` or
- * `Date.now`, and there is a lint rule saying so.
+ * only App has the content provider and the combat stream. Starting and
+ * advancing a *run* is `run.ts`, next door.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Statistics } from '../game/types.ts'
-import { emptyStatistics } from '../game/types.ts'
-import type { Run, Saved } from './persistence.ts'
+import type { Saved } from './persistence.ts'
 import { loadLevel, loadRun, loadSchedule, saveLevel, saveRun, saveSchedule } from './persistence.ts'
+import { newRun } from './run.ts'
 import { initialSchedule } from './schedule.ts'
-
-/** A fresh seed from ambient entropy. */
-export const randomSeed = (): number => Math.floor(Math.random() * 2 ** 31)
-
-/**
- * A new run at depth 1, carrying the player's totals forward but nothing else.
- *
- * The seed is rerolled per run on purpose: one level is one run until phase 8,
- * and a fixed seed would hand the player the same dungeon every twenty-five
- * minutes.
- */
-export const newRun = (statistics: Statistics = emptyStatistics()): Run => ({
-  runSeed: randomSeed(),
-  depth: 1,
-  carry: null,
-  statistics,
-})
 
 export interface PomodoroStore {
   /** Wall clock, refreshed once a second and on every return to the tab. */

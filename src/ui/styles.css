@@ -288,6 +288,52 @@ span.xp {
   margin-top: 0px;
 }
 
+/*
+ * The end-of-level choice: descend, start over, or retry.
+ *
+ * Wrapping rather than a fixed row — "Retry this dungeon" beside "New run" is
+ * wider than a phone, and a button that runs off the edge is a choice the
+ * player cannot make.
+ */
+.tombstone .choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  justify-content: center;
+  align-items: center;
+  margin: 0.5em 0px;
+}
+
+/*
+ * The second option, quieted with the same grey the keyboard keys use. It is
+ * still a full button — the polarity flips between a cleared level and a death,
+ * and after the first "start over" it flips again on preference, so neither
+ * option can afford to look unavailable.
+ */
+.tombstone .choice button.secondary {
+  border-color: #aab8c2;
+  background-color: #d4e1ea;
+}
+
+/*
+ * The choice that is now pending. Marked on the button itself rather than as a
+ * badge elsewhere, so the confirmation lands where the player was already
+ * looking. Both buttons stay live: changing your mind is one click, and there
+ * is nothing to undo because nothing has happened yet.
+ */
+.tombstone .choice button.chosen {
+  background-color: #4d9029;
+  color: white;
+}
+
+/* On its own line under the buttons: what will happen, and when. */
+.tombstone .choice .pending {
+  flex-basis: 100%;
+  margin: 0.25em 0px 0px;
+  font-size: 0.75em;
+  color: #6c7a88;
+}
+
 .build {
   font-size: 0.5em;
   color: grey;
@@ -374,16 +420,22 @@ span.xp {
 
 /*
  * Also on the tombstone, but before the countdown above it: the part of the
- * break the player has left after finishing the level. Given the warm colour
- * the break timer's last minute uses, because both say "this time is still
- * yours" rather than "you are waiting".
+ * break the player has left after finishing the level.
+ *
+ * **Green, not the amber above.** Both were `#cc7722` until 2026-08-12, which
+ * had one colour meaning two opposite things a player meets minutes apart: on
+ * the break timer amber is urgency — "the break is ending, find a stopping
+ * point" — and here it was leisure, "this time is still yours". Learn it in one
+ * place and the other reading undoes it. Amber stays with the case that
+ * actually carries urgency, and rest takes the palette's green, which already
+ * means "go".
  */
 .timer.rest {
   font-size: 1.25em;
 }
 
 .timer.rest .timer-clock {
-  color: #cc7722;
+  color: #4d9029;
 }
 
 /* The nudge to go and do something else. Quiet — it is advice, not a warning. */
