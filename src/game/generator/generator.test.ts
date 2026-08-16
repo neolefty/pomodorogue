@@ -184,10 +184,20 @@ describe('the depth ramp', () => {
    * **A change here that moves them is a bug in the change, not in the test** —
    * do not update the constants without a deliberate decision to give fixed
    * mode up. The generator is fully deterministic, so they cannot flake.
+   *
+   * Moved once, on 2026-08-16, for the one thing that is not a generation
+   * change: deleting the write-only `log` field shrank the serialized state
+   * without touching a tile, an entity or a placement. That the level really
+   * was untouched is not a judgement call — `log` was the last key the
+   * generator wrote, so re-adding `[{ type: 'start', seed, depth }]` to the new
+   * state reproduces the old serialization exactly, and both old hashes were
+   * confirmed to come back that way before these were replaced. Anything that
+   * cannot be shown to be a no-op like that still falls under the paragraph
+   * above.
    */
   const GOLDEN_DEPTH_1: Record<number, string> = {
-    1: 'ca32280fde276b42',
-    12345: '735f7cec0786d605',
+    1: '645bda2034b75734',
+    12345: '6f196c61793db594',
   }
 
   it('generates depth 1 byte-identically to the pre-ramp build', () => {

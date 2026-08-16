@@ -93,5 +93,4 @@ export function checkForEndgame(draft: Draft<GameState>): void {
   if (draft.outcome) return
   if (!draft.entities[PLAYER_ID]?.dead) return
   draft.outcome = 'died'
-  draft.log.push({ type: 'outcome', outcome: 'died', moves: draft.moves })
 }

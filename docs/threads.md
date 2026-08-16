@@ -130,10 +130,6 @@ Small, unblocked, and owned by nobody.
   The pure layers below it are covered well; `advance`, `move`, `finishBreak` and the bell edge are the
   most timing-dependent code in the repo and have nothing. Needs a DOM environment, which the project
   does not yet have.
-- **Delete `GameState.log`, or render it.** Four sites push to it and nothing reads it outside tests.
-  The original only ever `console.log`'d its game log, so the port is faithful and the feature was
-  never there. It rides along in the persisted level slot, growing all break. Deleting costs a
-  `LEVEL_SLOT.schemaVersion` bump.
 - **Say what the pomodoro is, in the help.** `Help.tsx` is still the port of the original's help —
   arrows, monsters, shrine. Nothing in it mentions the gate, the break, the choice at the end of a
   level, or the bell that is about to ring. A newcomer clears their first level and meets a 25-minute

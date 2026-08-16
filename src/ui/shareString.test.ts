@@ -44,7 +44,6 @@ function makeState(over: Partial<GameState> = {}): GameState {
     combatants: {},
     outcome: 'cleared',
     counts: {},
-    log: [],
     ...over,
   }
 }
