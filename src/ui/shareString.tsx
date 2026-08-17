@@ -74,7 +74,7 @@ export function makeShareString<T>(
   const out: T[] = [
     // The depth appears only when there is one worth naming, which is the same
     // test the tombstone's run lines use and the reason fixed mode needs no
-    // flag to suppress it — a fixed-mode string is byte-identical to phase 6's.
+    // flag to suppress it — a fixed-mode string carries no depth at all.
     //
     // The number is the *level* seed, which is a one-way hash of the run seed
     // and the depth: it names a level nobody can regenerate. Phase 8.5 replaces

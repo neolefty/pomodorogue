@@ -3,11 +3,12 @@
  * tuned as a set and because both `index.ts` and `entities.ts` need them — the
  * shared home is what keeps the arrows pointing one way.
  *
- * **Every knob is an identity at depth 1**, and that is the phase's correctness
- * property rather than a nicety. Fixed mode *is* the phase-6 game, so a depth-1
- * level must stay byte-identical to what the port produced before any of this
- * existed; `generator.test.ts` pins two seeds by hash. Any change here that
- * moves those hashes is a bug in the change, not in the test.
+ * **Depth 1 is the baseline**: every knob reduces to the module constant named
+ * beside it, so `ENTITY_COUNT` and friends mean what they say at the shallow
+ * end. That is a property of the current tuning, not a promise — it was one,
+ * until 2026-08-16 (see "Depth 1 is not frozen" in PLAN.md), and the two hashes
+ * in `generator.test.ts` are now a tripwire you may re-bless rather than a
+ * constraint you may not move.
  *
  * **These numbers are guesses.** They were picked to be legible rather than
  * balanced, and they have not been played: at one level per twenty-five minutes
@@ -28,6 +29,13 @@ export const ENTITY_COUNT = 15
 export const MONSTER_COUNT = 5
 
 /**
+ * How much of the map a depth-1 level digs. Named here rather than left as a
+ * bare 0.2 in {@link dugPercentageFor} so that it is a knob with a home, and so
+ * the depth-1 baseline test has something to name.
+ */
+export const DUG_PERCENTAGE = 0.2
+
+/**
  * The minimum difficulty depth imposes. Caps at 0.8 around depth 11, leaving
  * headroom above it for within-level distance to still mean something.
  */
@@ -38,15 +46,14 @@ export const depthFloor = (depth: number): number => Math.min(0.8, (depth - 1) *
  * `[floor, 1]` range available to distance: `floor + within * (1 - floor)`.
  *
  * **Takes the raw `posToDifficulty` value, before the caller's own scaling and
- * clamping**, and each caller's clamping is then left exactly as it was.
- * `posToDifficulty` is unclamped and exceeds 1 beyond the furthest room, which
- * `placeMonster` clamps and `placeCoveredItem` deliberately does not — an
- * over-1 item difficulty is how the original says "nothing under this one".
- * Normalising that away would change depth-1 item placement, which is the one
- * thing this file may not do.
+ * clamping.** That is where it belongs on the merits: the floor is expressed in
+ * the same units as `posToDifficulty` — fraction of the way to the furthest
+ * room — so "depth 5 starts you 32% of the way out" means one thing here and at
+ * both call sites. Applying it after each caller's own multiplier would make the
+ * floor mean something slightly different for items than for monsters.
  *
- * At depth 1 the floor is 0 and this reduces to `within` arithmetically. That is
- * not a special case in the code, which is exactly why it is trustworthy.
+ * At depth 1 the floor is 0 and this reduces to `within` arithmetically, with no
+ * special case in the code.
  */
 export function difficultyAtDepth(within: number, depth: number): number {
   const floor = depthFloor(depth)
@@ -69,12 +76,14 @@ export const entityCountFor = (depth: number): number =>
   ENTITY_COUNT + Math.min(MONSTER_COUNT, depth - 1)
 
 /**
- * How much of the map gets dug. 0.2 is rot-js's own default and what every level
- * through phase 7 used, so depth 1 passes it explicitly to no effect.
+ * How much of the map gets dug. The 0.2 baseline is inherited — it is rot-js's
+ * own default, which is what every level through phase 7 got by not passing the
+ * option at all. Inherited is not chosen: this is the first knob to move if
+ * levels start taking too long, and nothing depends on the baseline any more.
  *
  * The original was eyeing the same knob: `make-digger-map` carries a
  * commented-out `:dugPercentage 0.15` with `;TODO: increase this as you go
  * deeper` beside it.
  */
 export const dugPercentageFor = (depth: number): number =>
-  0.2 + Math.min(0.1, (depth - 1) * 0.01)
+  DUG_PERCENTAGE + Math.min(0.1, (depth - 1) * 0.01)

@@ -190,9 +190,11 @@ function placeCoveredItem(b: Builder, g: Placement): void {
   const { room } = g.rng.pick(candidates)
   const tile = g.rng.pick(freeTilesInRoom(room, b))
   const pos = posOfIndex(b.size, tile)
-  // Deliberately unclamped, as the original had it: a difficulty above 1 means
-  // this cover hides nothing at all. `difficultyAtDepth` is applied to the raw
-  // value and cannot introduce a clamp, so depth 1 is untouched.
+  // Deliberately unclamped, as the original had it. This difficulty is a
+  // probability threshold (`rng.next() > difficulty`), so overflowing 1 is
+  // meaningful rather than out of range: it is how the original says "nothing
+  // under this one". Contrast `placeMonster`, which clamps because its value
+  // indexes a table.
   const difficulty =
     difficultyAtDepth(
       posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable),
@@ -256,9 +258,10 @@ function placeMonster(b: Builder, g: Placement): void {
   // The original threw on a full map; skipping is divergence 2 in the port doc.
   if (b.freeTiles.size === 0) return
   const pos = posOfIndex(b.size, takeFreeTile(b, g.rng))
-  // The clamp is `placeMonster`'s own and stays exactly where it was, *after*
-  // the scale — `placeCoveredItem` has no equivalent, and moving either would
-  // change depth-1 placement. Depth raises the floor under the raw value only.
+  // Clamped after the scale, because this value indexes the monster table via
+  // `pickMonsterIndex` and anything over 1 would point past the end. That is
+  // why the asymmetry with `placeCoveredItem` above is real and not an
+  // oversight: a threshold may overflow, an index may not.
   const difficulty = Math.min(
     difficultyAtDepth(
       posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable),
