@@ -420,11 +420,17 @@ describe('what costs a turn', () => {
     expect(next.entities[PLAYER_ID]!.animation).toMatchObject({ name: 'bump-right' })
   })
 
-  it('does not count a walk into a wall', () => {
-    const next = takeTurn(makeTestState([player([1, 1])]), 'left', rng())
+  it('does not count a walk into a wall, and hands back the same state', () => {
+    const state = makeTestState([player([1, 1])])
+    const next = takeTurn(state, 'left', rng())
+
+    // Identity, not equality. A caller decides whether the player has *acted*
+    // by comparing references — `App`'s `move` starts the break clock on it —
+    // and Immer marks the draft modified before the wall is discovered, so
+    // without the guard in `takeTurn` this is a new object every time.
+    expect(next).toBe(state)
     expect(next.moves).toBe(0)
     expect(next.entities[PLAYER_ID]!.pos).toEqual([1, 1])
-    expect(next.entities[PLAYER_ID]!.moved).toBe(false)
   })
 
   it('counts an ordinary step', () => {

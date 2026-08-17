@@ -125,11 +125,6 @@ Small, unblocked, and owned by nobody.
   away, so the state has to be legible from across the room and out of the corner of an eye. Leading
   candidate, Bill's: a big red tomato behind the work timer, so "back to work" is a shape rather than a
   word. Cosmetic only; nothing about the schedule changes.
-- **Test the pomodoro state machine.** `App.tsx` has no tests, and `AppProps.config` exists solely so
-  "a test can drive a whole 25-minute cycle in milliseconds" — a hook built for a test never written.
-  The pure layers below it are covered well; `advance`, `move`, `finishBreak` and the bell edge are the
-  most timing-dependent code in the repo and have nothing. Needs a DOM environment, which the project
-  does not yet have.
 - **Say what the pomodoro is, in the help.** `Help.tsx` is still the port of the original's help —
   arrows, monsters, shrine. Nothing in it mentions the gate, the break, the choice at the end of a
   level, or the bell that is about to ring. A newcomer clears their first level and meets a 25-minute

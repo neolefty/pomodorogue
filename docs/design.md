@@ -353,6 +353,11 @@ entry point the UI holds** (plus `expireAnimation`). Immer earns its keep on the
 *not* what keeps the memoized entity index alive, since every turn moves the player and the index
 rebuilds regardless.
 
+**A reducer that changed nothing returns the same object.** Callers use reference identity to decide
+whether the player acted — the break clock starts on that signal — so a refused move must not hand back
+a fresh state. Immer will not do this for you: a draft written before the refusal is discovered counts
+as modified whatever the outcome, so return the original explicitly, as `startBreakClock` does.
+
 ### 10. Tiles are a flat array; entities are a per-turn index
 
 `GameMap.floorTiles` is a `Tile[]` of numeric codes indexed `y * w + x`, read through `tileAt`, which

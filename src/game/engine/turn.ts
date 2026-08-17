@@ -66,6 +66,9 @@ function restoreHealth(draft: Draft<GameState>): void {
  * draft. The external contract is unchanged and is what the UI holds: frozen
  * state in, frozen state out. See docs/design.md. The rule is
  * per entry point, not per codebase — {@link expireAnimation} is the other one.
+ *
+ * **A turn that does not happen returns the same object**, so a caller can tell
+ * by identity. See the note above the return.
  */
 export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState {
   // Not in the original, which left the key handler live after death and relied
@@ -77,7 +80,7 @@ export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState
   if (!player) return state
   const newPos = dir ? posInDir(player.pos, dir) : null
 
-  return produce(state, (draft) => {
+  const next = produce(state, (draft) => {
     resetCombatList(draft)
     moveTo(draft, PLAYER_ID, newPos, rng)
     // `moved` is false on exactly one path — the final `else` of `moveTo`, where
@@ -93,6 +96,23 @@ export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState
     restoreHealth(draft)
     updateMonsters(draft, rng)
   })
+
+  // A refused move is not a turn, so hand back the very state we were given.
+  //
+  // **Identity is the contract, and Immer cannot supply it here.** By the time
+  // the wall is discovered, `resetCombatList` has replaced `combatants` and
+  // `moveTo` has written `animation`, so the draft is marked modified whatever
+  // the outcome — `produce` then returns a new object for a turn in which
+  // nothing happened. The restore above puts the *value* of `combatants` back
+  // and cannot put the identity back.
+  //
+  // A caller that tells "nothing happened" by comparing references is therefore
+  // right to, and was wrong before this line: `App`'s `move` uses exactly that
+  // test to decide whether the player has acted, and the break clock starts on
+  // the player's first action. Without this, arriving at a level and bumping a
+  // wall spent five minutes of a break the player had not begun. Same idiom as
+  // `startBreakClock`, for the same reason.
+  return next.entities[PLAYER_ID]?.moved === false ? state : next
 }
 
 /**
