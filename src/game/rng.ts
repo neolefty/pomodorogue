@@ -7,7 +7,7 @@
  * here the generator is an explicit parameter instead. Nothing under
  * `src/game/` may call `Math.random` — there is an ESLint rule enforcing it.
  *
- * See docs/port/03-core.md.
+ * See docs/design.md.
  */
 import { RNG as RotRng } from 'rot-js'
 import type { LevelRequest } from './types.ts'
@@ -47,7 +47,7 @@ export const hashSeed = (...parts: (string | number)[]): number => djb2a(parts.j
  * **Run history must never be folded in here.** History-dependent content is a
  * separate overlay pass with its own stream; the base level stays a function of
  * the run seed and depth alone, so two players on one seed share a dungeon.
- * See "Seeds control the world, not the story" in PLAN.md.
+ * See "Seeds control the world, not the story" in docs/design.md.
  */
 export const levelSeed = (request: LevelRequest): number =>
   hashSeed(request.runSeed, request.depth)
@@ -86,7 +86,7 @@ export function makeRng(...seedParts: (string | number)[]): Rng {
  * Seeds the *global* rot-js generator.
  *
  * Only for `ROT.Map.Digger`, which reads from the global instance and offers no
- * way to inject one. Confined to the map generator; see docs/port/04-generator.md.
+ * way to inject one. Confined to the map generator; see docs/design.md.
  * Everything else takes an `Rng`.
  */
 export function seedGlobalRotRng(...seedParts: (string | number)[]): void {

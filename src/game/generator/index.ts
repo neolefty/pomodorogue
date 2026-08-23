@@ -2,9 +2,9 @@
  * Level generation, tied together. Ports `make-level` from
  * original/src/rogule/generator.cljs.
  *
- * See docs/port/04-generator.md, and "Seeds control the world, not the story" in
- * PLAN.md for why this is split into a base pass and a (not yet existing)
- * overlay pass.
+ * See "Seeds control the world, not the story" and "Generation is a base pass,
+ * with a named overlay seam" in docs/design.md for why this is split into a base
+ * pass and a (not yet existing) overlay pass.
  */
 import { applyCarry } from '../carry.ts'
 import { countEntities } from '../entities.ts'
@@ -28,7 +28,7 @@ export const COUNTED_ITEMS = ['mushroom', 'chestnut', 'gem-stone'] as const
  * `generator.test.ts` pins down.
  *
  * **This is the base pass.** A history-driven overlay pass will one day compose
- * *around* this function rather than reaching inside it; see PLAN.md. When it
+ * *around* this function rather than reaching inside it; see docs/design.md. When it
  * lands, two things here move: `counts` must be recomputed after the overlay, or
  * items it adds go untallied, and the overlay must keep allocating ids from
  * `nextEntityId` rather than restarting the counter.

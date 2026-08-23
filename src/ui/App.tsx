@@ -12,7 +12,7 @@
  * minted in `newRun` and the combat seed here. `runSeed` fixes the dungeon, and
  * a separate, deliberately *underived* seed drives combat and monster AI. Two
  * players on one run seed walk the same rooms and have different fights. See
- * "Seeds control the world, not the story" in PLAN.md.
+ * "Seeds control the world, not the story" in docs/design.md.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { builtinContent } from '../game/content/builtin.ts'
@@ -117,7 +117,7 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
    * does. The consequence is that reloading (or letting a break expire) rerolls
    * your upcoming luck; accepted, because there is no leaderboard and nobody to
    * cheat but yourself. See "The combat stream does not persist" in
-   * docs/port/07-pomodoro.md.
+   * docs/design.md.
    */
   const rngRef = useRef<Rng | null>(null)
 
@@ -179,7 +179,7 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
         // there is nothing to generate, and choosing nothing is the normal
         // state of someone spending their break away from the screen, which is
         // what the break is for. See "The choice takes effect at the next
-        // break" in docs/port/08-depth.md.
+        // break" in docs/design.md.
         if (current.run.next === null) return
         nextRun = advanceRun(current.run, current.run.next, current.level)
       }
@@ -311,7 +311,7 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
 
   // Spent smoke puffs and collision markers clear themselves as their
   // animations end — the engine's second entry point, so that this never has to
-  // reach for Immer. See "Animations" in docs/port/06-ui.md.
+  // reach for Immer. See "Animations" in docs/design.md.
   const clearEffect = useCallback(
     (id: EntityId) => {
       const current = read()

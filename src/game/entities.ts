@@ -41,7 +41,7 @@ const indexCache = new WeakMap<Record<EntityId, Entity>, PosIndex>()
  * rebuilds every turn regardless of Immer's structural sharing. Rebuilding a
  * ~40-entry index is microseconds. Immer earns its place separately, on the
  * nested writes and the single frozen boundary at `takeTurn` — two independent
- * wins, neither resting on the other. See §6 of docs/port/05a-simplify.md.
+ * wins, neither resting on the other. See docs/design.md.
  */
 export function entitiesByPos(entities: Record<EntityId, Entity>): PosIndex {
   const cached = indexCache.get(entities)

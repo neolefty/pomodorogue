@@ -21,7 +21,7 @@ import { Tile } from './Tile.tsx'
  * HP. `combatants` holds stable ids now while HP moves underneath them, so the
  * same trick would render a bar frozen at full health forever. There are a few
  * dozen squares on screen in a turn-based game; the memo was never what made
- * this fast. See "Health bars" in docs/port/06-ui.md.
+ * this fast. See "Health bars" in docs/design.md.
  */
 function HealthBar({ entity }: { entity: Entity }) {
   const stats = entity.stats

@@ -1,7 +1,7 @@
 /*
  * Ported from original/public/css/style.css.
  *
- * Dropped, per docs/port/06-ui.md: the landing-page rules (`body.page`), the
+ * Dropped deliberately in the port: the landing-page rules (`body.page`), the
  * `.ad` block, the `#loading` spinner, `#score`, `.message` and `.donations` —
  * the last three style markup the port has no equivalent of.
  *

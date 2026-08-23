@@ -3,13 +3,13 @@
  *
  * ClojureScript uses `[x y]` vectors directly as map keys because it has value
  * equality. JavaScript does not, so the entity index keys by a `"x,y"` string
- * instead. See docs/port/03-core.md.
+ * instead. See docs/design.md.
  *
  * **Tiles are not keyed this way.** The tile map is a flat array indexed
  * `y * w + x`; see `GameMap` and `tileAt` in grid.ts. The two representations
  * are deliberately independent — the entity index is short-lived and rebuilt per
  * turn, while the tile map is persisted, and only the latter is worth packing.
- * See §3 of docs/port/05a-simplify.md.
+ * See docs/design.md.
  */
 
 /** A location. Kept as a tuple to match the original's `[x y]` vectors. */

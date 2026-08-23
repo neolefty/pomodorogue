@@ -3,9 +3,8 @@
 Pomodorogue is a **static client with no server**. `pnpm build` produces a
 `dist/` of HTML, one JS bundle, and the sprite SVGs; deploying is copying that
 directory somewhere a web server can read it. There is no backend, no database,
-and no configuration — phase 9's optional content service
-([docs/port/09-server.md](port/09-server.md)) is deferred and only exists as a
-seam.
+and no configuration — the optional content service ([server.md](server.md)) is
+deferred and only exists as a seam.
 
 Live at <https://pomodorogue.com>, served by Caddy from `calcite`.
 

@@ -10,7 +10,7 @@
  * {@link advanceRun}'s `'descend'` branch, *fixed* is what you get by taking
  * `'restart'` every time — which is what the game did unconditionally before
  * phase 8. The words appear in the docs and never in the UI. See
- * docs/port/08-depth.md.
+ * docs/design.md.
  */
 import { snapshotCarry } from '../game/carry.ts'
 import type { GameState, Statistics } from '../game/types.ts'

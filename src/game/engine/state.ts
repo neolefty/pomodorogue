@@ -5,7 +5,7 @@
  *
  * These take an Immer draft and mutate it, rather than being `state -> state`
  * like their Clojure originals — which is the house style for everything below
- * `takeTurn`, the engine's one `produce`. See §6 of docs/port/05a-simplify.md.
+ * `takeTurn`, the engine's one `produce`. See docs/design.md.
  */
 import type { Draft } from 'immer'
 import { castDraft, current, isDraft } from 'immer'
@@ -87,8 +87,7 @@ export function addKilledBy(draft: Draft<GameState>, id: EntityId, by: EntitySum
  * Ends the run if the player is dead.
  *
  * The original also updated statistics here; those are run-scoped now, so the
- * engine only sets `outcome` and the run layer reacts to it. See "Deliberate
- * omissions" in docs/port/05-engine.md.
+ * engine only sets `outcome` and the run layer reacts to it.
  */
 export function checkForEndgame(draft: Draft<GameState>): void {
   if (draft.outcome) return

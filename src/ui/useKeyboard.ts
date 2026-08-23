@@ -2,7 +2,7 @@
  * Keyboard input. Ports `install-arrow-key-handler` and `general-key-handler`
  * from original/src/rogule/engine.cljs and ui.cljs.
  *
- * Two departures from the original, both from docs/port/06-ui.md:
+ * Two departures from the original, both from docs/design.md:
  *
  * - **`event.key`, not `keyCode`.** The original's `key-dir-map` is a table of
  *   numbers (37/39/38/40, and 72/76/75/74 for `hjkl`), and its on-screen arrows

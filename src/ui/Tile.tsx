@@ -8,7 +8,7 @@
  * replay is a `key` change at the call site instead. Remounting the element
  * restarts its animation, which is the same effect with none of the fragility.
  * `Animation.frame` exists to make those keys differ; see "Animations" in
- * docs/port/06-ui.md.
+ * docs/design.md.
  */
 import type { CSSProperties } from 'react'
 import type { Sprite } from '../game/sprites.ts'

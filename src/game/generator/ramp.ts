@@ -20,7 +20,7 @@
  * five-minute break has none to lend. And weapons currently stack additively
  * with no cap and are never consumed (`getWeaponsDmg`), so a deep progressive
  * player's damage climbs on its own; that is a known hole this ramp is not
- * trying to plug. See "Difficulty ramp" in docs/port/08-depth.md.
+ * trying to plug. See docs/progression/findings.md.
  */
 
 /** The original's `entity-count` and `monster-count` (generator.cljs:326). */

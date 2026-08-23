@@ -7,7 +7,7 @@
  * everything standing on the target square, then advances, bumps, or refuses.
  *
  * Everything here mutates an Immer draft. The engine opens exactly one
- * `produce`, in `takeTurn`; see §6 of docs/port/05a-simplify.md.
+ * `produce`, in `takeTurn`; see docs/design.md.
  */
 import type { Draft } from 'immer'
 import type { PassableFn } from '../grid.ts'
@@ -162,7 +162,7 @@ export function moveTo(
   // With one draft there is no pre-encounter state to fall back on, and a held
   // draft *object* would mutate underneath us — copying out is the whole
   // defense. See "The two places that read pre-encounter state" in
-  // docs/port/05a-simplify.md.
+  // docs/design.md.
   const from: Pos = [entity.pos[0], entity.pos[1]]
   const moves = draft.moves
   // Ids, not entities: an encounter may remove one, and each is re-resolved

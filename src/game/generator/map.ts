@@ -54,7 +54,7 @@ export interface DiggerMap {
  * global is seeded here, immediately before the digger runs. It is confined to
  * this function on purpose — everything downstream of the digger (entity
  * placement, item rolls, monster selection) takes an explicit `Rng`. Do not let
- * this pattern spread. See docs/port/04-generator.md.
+ * this pattern spread. See docs/design.md.
  *
  * The original derived the map seed from the globally-patched `Math.random`,
  * which is why its levels were not actually reproducible; here it comes from the

@@ -2,14 +2,14 @@
  * The end-of-level screen, for **both** ways a level can end. Ports
  * `component-tombstone` and `copy-text` from original/src/rogule/ui.cljs.
  *
- * Dropped per docs/port/06-ui.md: the social-media search links, the ad block,
+ * Dropped deliberately in the port: the social-media search links, the ad block,
  * and the feedback mailto. Kept: the share string, the share button, and the
  * statistics.
  *
  * Since phase 8 this is also where the run is steered. The screen is the only
  * moment the choice between going deeper and starting again is meaningful,
  * which is the whole argument against making it a setting — see "Two modes, and
- * no mode flag" in docs/port/08-depth.md. Nothing here decides *when* the choice
+ * no mode flag" in docs/design.md. Nothing here decides *when* the choice
  * takes effect: it records what the player wants and the next break acts on it.
  *
  * Where the original counted down to tomorrow's rogule, `footer` holds the

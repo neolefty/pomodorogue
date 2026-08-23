@@ -60,11 +60,11 @@ function restoreHealth(draft: Draft<GameState>): void {
  * The `Rng` is the caller's — created from ambient entropy when the level starts
  * and held for its lifetime, or a fixed-seed one in tests. Combat randomness is
  * deliberately not derived from the level seed; see "Seeds control the world,
- * not the story" in PLAN.md.
+ * not the story" in docs/design.md.
  *
  * **This is the turn path's only `produce`.** Everything below it mutates the
  * draft. The external contract is unchanged and is what the UI holds: frozen
- * state in, frozen state out. See §6 of docs/port/05a-simplify.md. The rule is
+ * state in, frozen state out. See docs/design.md. The rule is
  * per entry point, not per codebase — {@link expireAnimation} is the other one.
  */
 export function takeTurn(state: GameState, dir: Dir | null, rng: Rng): GameState {

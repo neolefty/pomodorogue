@@ -7,10 +7,11 @@ Die and the run resets to depth 1.
 A dungeon a day keeps the Balrog away — but a dungeon an hour keeps the
 deadline away.
 
-**Status:** early. Pomodorogue starts as a port of
-[Rogule](https://rogule.com) from ClojureScript to TypeScript/React, then
-extends it into multi-level runs on a pomodoro cycle. See [PLAN.md](PLAN.md)
-for the phase plan and current status board.
+**Status:** it works and it is played daily. Pomodorogue started as a port of
+[Rogule](https://rogule.com) from ClojureScript to TypeScript/React and grew
+into multi-level runs on a pomodoro cycle. [PLAN.md](PLAN.md) says where things
+stand; [docs/design.md](docs/design.md) is how it works and what the code holds
+to; [docs/threads.md](docs/threads.md) is everything unfinished.
 
 ## Development
 

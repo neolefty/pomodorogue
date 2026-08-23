@@ -14,8 +14,8 @@
  * `Stats.hp` has already changed shape once. A saved level from an older build
  * does not fail at load, it fails mid-turn or renders `NaN`. Discarding costs a
  * level — possibly a level that spanned more than one break — where a migration
- * costs a migration for every future deploy. See "Version the save; never
- * migrate it" in docs/port/07-pomodoro.md.
+ * costs a migration for every future deploy. See "Version the save; discard on
+ * mismatch, never migrate" in docs/design.md.
  *
  * Tolerance belongs here, at the load boundary, where the input is genuinely
  * untrusted. It does not belong in the middle of a turn: the `throw` in

@@ -83,14 +83,14 @@ export function uncoverItem(
  * start again, so it cannot know whether it is a staircase down or a shrine to
  * walk away from. `'cleared'` is the one reading both agree on, which is why it
  * is not `'descended'` and why the entity is still a shrine. See "The shrine
- * stays a shrine" in docs/port/08-depth.md.
+ * stays a shrine" in docs/design.md.
  *
  * Like the original this does not check that the mover is the player — nothing
  * else can reach the shrine, because it sits on the `occupy` layer and
  * `makeMonsterPassable` routes monsters around anything that occupies a square.
  *
  * Statistics are deliberately not touched here: they are run-scoped, and the run
- * layer reacts to `outcome`. See docs/port/05-engine.md.
+ * layer reacts to `outcome`. See docs/design.md.
  */
 export function finishLevel(draft: Draft<GameState>): boolean {
   draft.outcome = 'cleared'

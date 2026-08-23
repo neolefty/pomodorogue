@@ -4,7 +4,7 @@
  * This is the one piece of phase 7.5 that is not decoration. Telling someone to
  * step away from the screen is empty if the only thing that says the break is
  * over is on the screen; the sound is what makes leaving possible. See
- * docs/port/07a-break-payoff.md.
+ * docs/design.md.
  *
  * Synthesized rather than played from a file. An `AudioContext` is needed
  * either way — a file would have to be created and unlocked through exactly the

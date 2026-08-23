@@ -34,7 +34,7 @@ import { difficultyAtDepth } from './ramp.ts'
 /** The player's starting XP, which doubles as their maximum damage. */
 export const PLAYER_XP = 3
 
-/** Difficulty multipliers from the original — see docs/port/04-generator.md. */
+/** Difficulty multipliers from the original — see docs/design.md. */
 const ITEM_DIFFICULTY_SCALE = 0.9
 const MONSTER_DIFFICULTY_SCALE = 0.75
 /** A monster carries loot on half of all rolls, regardless of difficulty. */
@@ -326,7 +326,7 @@ export interface GeneratedEntities {
  * `spawnTiles` is where entities may stand — room and corridor floor, from
  * `makeDiggerMap`. It is a parameter rather than a field on `GameMap` because
  * play never reads it and phase 7 would otherwise persist it; see §2 of
- * docs/port/05a-simplify.md.
+ * docs/design.md.
  */
 export function makeEntities(
   map: GameMap,

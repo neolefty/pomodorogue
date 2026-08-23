@@ -9,7 +9,7 @@
  * This replaces the original's daily gate wholesale. `util.cljs`'s `tomorrow`,
  * `time-until`, `date-token`, `parse-date` and the timezone-offset arithmetic
  * are deliberately not ported: they answered "when is midnight where the player
- * is", a question a relative interval never asks. See docs/port/07-pomodoro.md.
+ * is", a question a relative interval never asks. See docs/design.md.
  */
 
 /**

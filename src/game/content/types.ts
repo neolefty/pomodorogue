@@ -5,7 +5,7 @@
  * Phase 4 ships exactly one implementation (`builtinContent`), but the interface
  * is what later lets per-depth themes, phase 8's depth-shifted monster table,
  * and phase 9's server-generated content arrive without touching any placement
- * function. See docs/port/04-generator.md.
+ * function. See docs/design.md.
  */
 import type { Sprite } from '../sprites.ts'
 import type { EntityKind, LevelRequest, Stats } from '../types.ts'

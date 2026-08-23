@@ -1,6 +1,6 @@
 /**
  * The two ways the game plays, tested as what they actually are: one function,
- * three branches, no mode flag anywhere. See docs/port/08-depth.md.
+ * three branches, no mode flag anywhere. See docs/design.md.
  */
 import { describe, expect, it } from 'vitest'
 import { builtinContent } from '../game/content/builtin.ts'

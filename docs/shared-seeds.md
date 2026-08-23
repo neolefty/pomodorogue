@@ -1,8 +1,8 @@
-# Phase 8.5 — Shared seeds
+# Shared seeds
 
 **Outcome:** the share string names a level anyone can go and play, and a link opens it. "This one was brutal — two vampires and not a weapon in sight" becomes something you can hand to someone.
 
-**Status:** not started. Requires phase 8, which is what makes depth worth naming.
+**Status:** designed, not started. This is the next feature-sized thing that is ready to build.
 
 ## What identifies a level
 
@@ -23,7 +23,7 @@ Opening someone's link starts a **visit**: that exact level, played with a stand
 
 The reason is the same one that keeps carry out of the base generator. **A seed fixes the dungeon, not the run.** The depth-7 level that killed you killed you with the HP and inventory you happened to arrive with, and none of that is in the seed. Handing a visitor your carry would mean shipping a snapshot of your run, which is a different and much larger feature; handing them depth 7 with a fresh elf is honest about what a seed actually controls. They see the rooms you saw and the monsters you met. What happens next is theirs.
 
-**The fights differ too, and that is deliberate.** Combat and monster AI draw from an entropy-seeded stream that is not derived from `runSeed` at all (see "Seeds control the world, not the story" in PLAN.md). Two people on one link walk the same dungeon and have different runs, and so does the same person twice. Nothing in this game repeats exactly, which is the intended shape — there is no leaderboard and nobody to compare against move for move. **Revisit if players ask for it**, and not before: a seeded combat stream is a small change to make and a large one to unmake once anyone relies on it.
+**The fights differ too, and that is deliberate.** Combat and monster AI draw from an entropy-seeded stream that is not derived from `runSeed` at all (see [design.md](design.md#3-seeds-control-the-world-not-the-story)). Two people on one link walk the same dungeon and have different runs, and so does the same person twice. Nothing in this game repeats exactly, which is the intended shape — there is no leaderboard and nobody to compare against move for move. **Revisit if players ask for it**, and not before: a seeded combat stream is a small change to make and a large one to unmake once anyone relies on it.
 
 ## The gate, and the one hole to avoid
 
@@ -41,7 +41,7 @@ This closes the self-sharing hole while leaving the newcomer path wide open, and
 A fourth localStorage slot, `visit: { runSeed, depth } | null`, with its own `schemaVersion` like the others:
 
 - **Landing** on `?seed=…&depth=…` writes the slot. Do this at the edge, in the UI layer, alongside where `randomSeed` is minted — nothing under `src/game/` may read a URL any more than it may read a clock.
-- **Playing** it: `advance`'s "nothing live to play" branch checks `visit` before it consults `run.next` (phase 8). If a visit is pending, generate `makeLevel({ runSeed, depth }, builtinContent)` with **no carry** and leave `run` completely alone.
+- **Playing** it: `advance`'s "nothing live to play" branch checks `visit` before it consults `run.next`. If a visit is pending, generate `makeLevel({ runSeed, depth }, builtinContent)` with **no carry** and leave `run` completely alone.
 - **Knowing you are in one**: the slot stays populated for the duration of the visit and is cleared when the visit level ends. `visit !== null` is the whole test, so `GameState` needs no new field and the level slot's shape does not change.
 - **Scoring**: `recordOutcome` is skipped entirely while visiting. A visit that ends the break ends it the same way any level does (`endBreakAtDeadline`) — the break was spent either way.
 - **A frozen level takes precedence.** The visit only ever lands in the branch that runs when nothing is live, so a run level frozen mid-break resumes first and the visit waits for the break after. Do not let a link interrupt a level in progress.
@@ -49,4 +49,4 @@ A fourth localStorage slot, `visit: { runSeed, depth } | null`, with its own `sc
 ## Open questions
 
 - Should the share string carry the *result* as well as the level — "I got to depth 7 and died here" — so a visitor knows what they are walking into? It is already most of the string; the question is whether spoiling the level is part of the fun or the end of it.
-- Is there any reason to let a visit be descended from — a link as the start of a run rather than a one-off? It would need an answer for what carry a depth-7 start gets, which is the thing this phase deliberately does not have.
+- Is there any reason to let a visit be descended from — a link as the start of a run rather than a one-off? It would need an answer for what carry a depth-7 start gets, which is the thing this design deliberately does not have.

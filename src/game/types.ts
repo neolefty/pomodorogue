@@ -81,7 +81,7 @@ export interface Animation {
  * (`fns.encounter`, `fns.update`, `fns.passable`) resolved through three lookup
  * tables. They turned out to be fully determined by the kind — every monster
  * carried the same three — so 5.5 collapsed them. See §1 of
- * docs/port/05a-simplify.md.
+ * docs/design.md.
  *
  * Declared here rather than in the engine so `types.ts` stays dependency-free;
  * `content/types.ts` and the generator both consume it.
@@ -198,7 +198,7 @@ export interface Room {
  * to wall the level in, but nothing in `engine/` ever looks at them — so they
  * come back from `makeDiggerMap` alongside this rather than sitting on it. On
  * it, they would be a near-complete second and third copy of the tile map in
- * every save, written every 25 minutes. See §2 of docs/port/05a-simplify.md.
+ * every save, written every 25 minutes. See docs/design.md.
  */
 export interface GameMap {
   /**
@@ -208,8 +208,8 @@ export interface GameMap {
    * **Read it through `tileAt` (grid.ts), not by hand.** Raw `y * w + x` on an
    * out-of-range `x` silently lands on the neighbouring row.
    *
-   * The name is inherited from the original and covers walls too; it is on the
-   * post-port rename list in docs/port/00-review-notes.md §6.
+   * The name is inherited from the original and covers walls too. Renaming it
+   * is a chore nobody has taken; see docs/threads.md.
    */
   floorTiles: Tile[]
   rooms: Room[]
@@ -230,13 +230,13 @@ export interface GameMap {
  * which runs on top of a finished base level with its own input struct and its
  * own RNG stream. Widening this type instead would make the base geometry
  * depend on how the run went, which is exactly what the two-pass split exists to
- * prevent. See "Seeds control the world, not the story" in PLAN.md.
+ * prevent. See "Seeds control the world, not the story" in docs/design.md.
  *
  * A struct rather than two loose parameters mostly so call sites read well.
  *
  * Note combat randomness takes the opposite path: it is *not* derived from
  * this request. The engine's `Rng` is entropy-seeded at the edge — only
- * generation repeats. See "Seeds control the world, not the story" in PLAN.md.
+ * generation repeats. See "Seeds control the world, not the story" in docs/design.md.
  */
 export interface LevelRequest {
   /** Chosen once per run: user-supplied, or random entropy from the edge. */
@@ -253,7 +253,7 @@ export interface LevelRequest {
  * which name a *direction*. Since phase 8 the direction is chosen on the screen
  * after the level, so neither word can be decided at the moment the shrine is
  * touched. `'cleared'` is what the shrine actually knows. See "The shrine stays
- * a shrine" in docs/port/08-depth.md.
+ * a shrine" in docs/design.md.
  */
 export type Outcome = 'died' | 'cleared'
 
@@ -264,7 +264,7 @@ export type Outcome = 'died' | 'cleared'
  * exactly one level. It reaches a new level through `applyCarry`, a post-pass
  * that runs *after* the base generator, never as an input to it: carry is
  * history, and history is what {@link LevelRequest} exists to keep out. See
- * "What carries between levels" in docs/port/08-depth.md.
+ * "What carries down the stairs" in docs/design.md.
  */
 export interface PlayerCarry {
   stats: Stats

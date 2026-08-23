@@ -6,7 +6,7 @@
  * dispatched them at the window (`trigger-key`), so that the real key handler
  * would pick them up. That is the ugliest corner of the original UI and it goes
  * away here: the buttons call the same `onMove` the keyboard handler calls, and
- * neither knows the other exists. See "Keyboard input" in docs/port/06-ui.md.
+ * neither knows the other exists. See "Keyboard input" in docs/design.md.
  *
  * The arrow glyphs are inline SVG rather than the original's build-time
  * `rc/inline` of files that are not in its repository. Four paths, no assets.

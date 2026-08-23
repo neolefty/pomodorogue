@@ -73,7 +73,7 @@ export function chasePlayer(
  * Corpses are skipped on `dead` rather than by having had a behavior name
  * stripped off them at the kill site, which is how phase 5 stopped a corpse from
  * chasing; `dead` was already set one line earlier there. See §1 of
- * docs/port/05a-simplify.md.
+ * docs/design.md.
  *
  * The original captured each entity alongside its id before the loop and passed
  * that stale copy in. Here the entity is re-read from the draft, which is
@@ -92,7 +92,7 @@ export function updateMonsters(draft: Draft<GameState>, rng: Rng): void {
     // this way; without the same guard here, whether a monster acts after the
     // killing blow came down to its position in the entity table. What that
     // spoils is the frozen death frame, which is exactly what the UI renders
-    // and the tombstone reports. See note 5 in docs/port/00-review-notes.md.
+    // and the tombstone reports. See docs/design.md.
     if (draft.outcome) return
     const entity = draft.entities[id]
     if (!entity || entity.dead) continue

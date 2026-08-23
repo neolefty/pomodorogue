@@ -96,8 +96,9 @@ const axe = (id: EntityId, pos: Pos): Entity =>
 /**
  * Runs one draft mutator the way `takeTurn` does.
  *
- * The engine opens exactly one `produce`, at `takeTurn` (§6 of
- * docs/port/05a-simplify.md), so a test that reaches past it for a single
+ * The engine opens exactly one `produce`, at `takeTurn` ("One
+ * immutability boundary per turn" in docs/design.md), so a test that reaches
+ * past it for a single
  * function has to supply the boundary itself.
  */
 const fight = (state: GameState, theirId: EntityId, myId: EntityId, r: Rng): GameState =>
@@ -374,7 +375,7 @@ describe('outcomes', () => {
   // The death frame is not a throwaway: it is what the UI leaves on screen and
   // what the tombstone reports on. Without a guard inside the monster loop,
   // whether a monster got a free go over the body came down to where it sat in
-  // the entity table. See note 5 in docs/port/00-review-notes.md.
+  // the entity table. See docs/design.md.
   it('ends the turn on the killing blow, leaving later monsters where they were', () => {
     // m1 is adjacent and armed; m2 is well inside its activation range and
     // would close in on any turn it were given.
@@ -512,7 +513,7 @@ describe('expireAnimation', () => {
   // The engine's second entry point, and the only one the UI calls outside the
   // turn loop: transient effects carry `disposal: 'destroy'` and are cleared
   // when their animation ends. It exists so the UI never has to open a
-  // `produce` of its own. See "Animations" in docs/port/06-ui.md.
+  // `produce` of its own. See "Animations" in docs/design.md.
   it('removes the entity whose animation finished, and nothing else', () => {
     const smoke = item('smoke', [3, 2], {
       layer: 'between',
@@ -583,7 +584,7 @@ describe('monsters', () => {
   // opposite of what `activation` means: `findPath` returns `[]` for
   // unreachable, and `[].length < activation` passes the gate. Not a corner
   // case — `makeMonsterPassable` blocks on every occupied square, so monsters
-  // wall each other off routinely. See "Step 0" in docs/port/06-ui.md.
+  // wall each other off routinely.
   //
   // The assertion is on the *stream*, not the position: passing the gate with
   // an empty path fed `moveTo` a null and rested, so the monster held still

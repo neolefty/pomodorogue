@@ -12,8 +12,8 @@
  * The alternative — threading carry into `placePlayer` — was rejected and is
  * worth not re-litigating. It would put run history inside the base pass, which
  * breaks both "two players on one seed walk the same dungeon" and the
- * generator's two-scalars-in determinism test. See "What carries between
- * levels" in docs/port/08-depth.md.
+ * generator's two-scalars-in determinism test. See "What carries down the
+ * stairs" in docs/design.md.
  */
 import { allocId, getPlayer } from './entities.ts'
 import type { GameState, PlayerCarry } from './types.ts'

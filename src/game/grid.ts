@@ -4,7 +4,7 @@
  *
  * Tiles live in a flat, row-major array (`GameMap.floorTiles`) addressed
  * `y * w + x`. Everything that converts between an index and a `Pos` is here, so
- * the arithmetic appears once. See §3 of docs/port/05a-simplify.md.
+ * the arithmetic appears once. See docs/design.md.
  */
 import { Path } from 'rot-js'
 import type { Pos } from './pos.ts'

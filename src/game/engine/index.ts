@@ -8,7 +8,7 @@
  * not re-exported: they were, until 5.5 §6 changed their signatures and left
  * the exports behind advertising something no caller can use.
  *
- * See docs/port/05-engine.md.
+ * See docs/design.md.
  */
 export { getArmourHp, getWeaponsDmg } from './combat.ts'
 export { HEALTH_PICKUP_HP } from './encounters.ts'

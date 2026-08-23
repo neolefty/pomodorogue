@@ -25,8 +25,9 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    // `src/game/` is deliberately DOM-free (see docs/port/03-core.md), so a node
-    // environment is enough. Phase 6 will need jsdom for component tests.
+    // `src/game/` is deliberately DOM-free (invariant 6 in docs/design.md), so a
+    // node environment is enough. Component tests will need jsdom; see "Test the
+    // pomodoro state machine" in docs/threads.md.
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
