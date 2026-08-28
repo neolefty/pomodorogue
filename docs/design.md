@@ -323,7 +323,9 @@ a bad name is a compile error.
 Templates are plain data plus a kind from a closed union, which means externally-supplied content
 cannot name behavior that does not exist. **Do not resurrect per-slot function registries.** If a
 behavioral variant is wanted (a monster that stands guard, a trapped item), express it as a template
-data field read by the existing switch cases.
+data field read by the existing switch cases. And when one kind's case grows conditionals on several
+optional fields, split the kind rather than generalize the dispatch — flag soup and a registry are the
+same disease at different ages.
 
 ### 8. Version the save; discard on mismatch, never migrate
 

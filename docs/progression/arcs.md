@@ -23,6 +23,9 @@ None of these exist in the code.
 - **beat** — a level's role within its arc: `intro`, `escalate`, `shop`, `boss`.
 - **theme** — the monster and item tables an arc draws from. Themes are picked per run; beats are
   fixed.
+- **curriculum** — the order new elements are introduced across a run's depths (the elements
+  themselves are catalogued in [elements.md](elements.md)). Drawn per run, like themes; see
+  [The curriculum](#the-curriculum--which-element-arrives-when).
 
 ```
 depth  1  │ 2      3         4      5     │ 6      7         8      9     │ ...
@@ -62,6 +65,43 @@ base pass. **Consecutive arcs must not repeat a theme** — partly for variety, 
 makes [transformation](ingredients.md#transformation--you-become-what-you-defeated) work for free.
 
 "Oops, all dinosaurs" is exactly a theme, and worth having in the pool as the joke it is.
+
+## The curriculum — which element arrives when
+
+[elements.md](elements.md) sets the working rule — one new element per level, introduced alone before
+it composes — and the beats give it a rhythm: the intro beat teaches, the escalate beat composes. What
+that leaves open is *which* element arrives at each depth, and the answer is the same split as themes:
+**cadence is fixed, order is drawn per run.**
+
+- **Cadence is a property of the beat.** One new element on `intro` and one on `escalate`; none on
+  `shop` or `boss`. A fixed cadence is what keeps difficulty tunable and the player never learning two
+  things at once.
+- **Order is a per-run sample of a prerequisite DAG.** Elements declare prerequisites as plain data —
+  dough needs flour, flour needs wheat — and the curriculum is a seeded topological sample: drawn once
+  from `runSeed`, indexed by depth. A pure function of the two scalars, so it is base-pass content
+  like everything else in this document.
+- **Same seed, same curriculum.** Two runs differ; two players on one seed do not. The recipient of
+  `#Pomodorogue 48213/5` meets the same wheat field, which is what keeps a shared level naming one
+  level.
+
+**Prerequisites are over the curriculum, never over the player's history.** This is this section's
+version of the boss-feels-like-overlay mistake. "Dough comes after wheat" means wheat was *scheduled*
+shallower in this run — not that the player picked any up. Gating on possession would drag generation
+into the overlay, break seed-sharing (the recipient's run went differently), and stall the curriculum
+for a player who walked past the wheat field, with no way to show them why. Missing a prerequisite is
+ordinary roguelike consequence: the dough level arrives and you have nothing to proof. If an element
+is genuinely useless without its prerequisite *item*, the fix is making the item obtainable again —
+the shop restocks flour — not gating generation on inventory.
+
+Two boundary notes. **Depth 1 sits outside the curriculum**, the same way it sits outside the arcs.
+And **element ids are a closed union**, the same doctrine as `EntityKind`
+([design.md](../design.md#7-gamestate-is-json-serializable-and-behavior-is-named-by-a-kind)): a
+curriculum can only schedule behavior the engine implements, so externally-supplied content cannot
+name an element that does not exist.
+
+One measurable bonus: a curriculum that is a pure function of `runSeed` is sweepable. The
+[measurement harness](findings.md#measure-before-tuning) can enumerate thousands of orderings and flag
+any that spike — kettle-before-fire problems — before a human plays one.
 
 ## Arcs belong in the base pass, not the overlay
 

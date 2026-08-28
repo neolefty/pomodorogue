@@ -80,6 +80,26 @@ is the bar.
 HP is spending the scarcest resource in the design. `ramp.ts`'s own tuning note says it: if levels
 start taking too long before they start feeling too hard, flatten the dug-percentage knob first.
 
+## Where an idea lands in code
+
+The two pots sort ideas for *brainstorming*; these four bins sort them for *implementation*. Every
+idea in this folder falls into one:
+
+| bin | what it holds | home |
+|---|---|---|
+| **Data** | new monsters, items, themes, prices | `ContentProvider` tables (`src/game/content/`) |
+| **Pure function of `(runSeed, depth)`** | arcs, beats, curricula, counts, boss placement | `ramp.ts` today; the level plan (step 5 below) |
+| **Post-pass over a finished level** | carry, fusion, the work-interval heal, bones | `applyCarry` today; the overlay seam once history arrives |
+| **Behavior** | new verbs — ice, keys, feeding | the `kind` switches — deliberately the expensive bin |
+
+**Classify before coding, and prefer the cheapest bin that can express the idea.** The shop is the
+model case: it feels like new behavior and is actually a data field (`price`), a placement rule, and a
+tweak to the existing pickup encounter. The [cost taxonomy](elements.md#cost-taxonomy) in elements.md
+is this table at finer grain, and the base-pass rule in
+[design.md](../design.md#4-generation-is-a-base-pass-with-a-named-overlay-seam) is the classifier for
+bin two. The health metric is mechanisms-per-idea: a good week adds ten table rows, two plan fields,
+and zero new kinds.
+
 ---
 
 ## Suggested order, if the whole direction is taken
@@ -89,10 +109,17 @@ start taking too long before they start feeling too hard, flatten the dug-percen
    Independent of arcs.
 3. **Ascend**, at the shrine. Unblocks deep playtesting by making a deep run bankable.
 4. **Expand and theme the sprite tables.** Hand-curated, no generation. Prerequisite for arcs.
-5. **Arcs and beats**, in the base pass via `ContentProvider` and a themed ramp.
-6. **The shop**, as a room you walk through.
-7. **The work-interval heal**, and bread as its currency.
-8. **Transformation**, once themes exist to transform into.
+5. **One level plan.** Consolidate `ramp.ts` into a single `planFor(runSeed, depth) → LevelPlan` —
+   plain data (beat, theme, curriculum entry, counts, knobs) computed once at the top of
+   `makeBaseLevel` and consumed by the generator, instead of call sites pulling knobs independently.
+   The depth-1 identity property becomes one assertion (`planFor(seed, 1)` equals the original's
+   constants), the determinism test keeps its two-scalars shape, and the measurement harness can
+   sweep plans without generating levels. Do this *before* arcs, not during — beat, theme and
+   curriculum are all plan fields, and without the plan they smear across the generator.
+6. **Arcs and beats**, in the base pass via `ContentProvider` and the plan.
+7. **The shop**, as a room you walk through.
+8. **The work-interval heal**, and bread as its currency.
+9. **Transformation**, once themes exist to transform into.
 
 **Steps 2 and 3 are worth doing whatever happens to the rest** — the first fixes a confirmed defect,
 the second unblocks the measurement everything else needs.

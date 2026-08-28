@@ -58,7 +58,7 @@ Every idea below is tagged with what it costs. Cheap-and-deep beats expensive-an
 
 **This is the flagship section.** Every roguelike has terrain and monsters; no other roguelike has a guaranteed, known-length, real-time interval between plays during which the player is *doing something virtuous*. Time-away is a resource. Spend it.
 
-The shared mechanism for all of these: a counter of **completed work intervals**, which `Run` can already almost express, ticked once per cycle. Everything below is "N intervals elapsed → transform" — one mechanism, many skins. All are `x-break` and all are inert in fixed mode by construction, because a fresh run has no elapsed intervals — the same trick the whole descend design uses.
+The shared mechanism for all of these: a counter of **completed work intervals**, which `Run` can already almost express, ticked once per cycle. Everything below is "N intervals elapsed → transform" — one mechanism, many skins. All are `x-break` and all are inert in fixed mode by construction, because a fresh run has no elapsed intervals — the same trick the whole descend design uses. That counter is also the *only* form in which time may enter `src/game/`: a count, computed in `src/pomodoro/` and passed as data, never a timestamp or a clock (invariant 6's lint rule stays intact) — which makes every mechanic in this section testable by handing the game layer an integer.
 
 ### The garden — plant during a break, harvest two breaks later
 
