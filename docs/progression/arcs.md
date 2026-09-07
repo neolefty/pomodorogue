@@ -9,8 +9,9 @@ Arcs replace the number with a structure — each theme brings its own table, si
 own arc, so deeper means *a new collection* rather than a thinner slice of an old one.
 
 **Depth 1 belongs to no arc, and the first real arc starts at depth 2.** Depth 1 was balanced as a
-standalone puzzle and is hash-pinned; making it the intro beat of arc 1 would mean either re-tuning it
-or accepting a beat that does not fit its own rhythm.
+standalone puzzle; making it the intro beat of arc 1 would mean either re-tuning it for the arc's sake
+or accepting a beat that does not fit its own rhythm. (Re-tuning it for *its own* sake is a separate
+question and is allowed; see invariant 1 in [design.md](../design.md).)
 
 ---
 

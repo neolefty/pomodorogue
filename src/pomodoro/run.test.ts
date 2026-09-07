@@ -107,7 +107,7 @@ describe('starting over', () => {
     // Fixed mode is this branch taken every time — a fresh depth-1 elf every
     // break, which is why it needs no special-casing to exist. It used to be
     // defined as "the phase-6 game"; that promise was dropped on 2026-08-16
-    // (see "Depth 1 is not frozen" in PLAN.md) and this branch is unaffected,
+    // (invariant 1 in docs/design.md) and this branch is unaffected,
     // because the mode was always the branch and never the level's contents.
     const next = advanceRun(run(), 'restart', finished('cleared'))
     const fresh = newRun(next.statistics, 'restart')

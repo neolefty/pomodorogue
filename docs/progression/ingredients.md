@@ -48,7 +48,7 @@ returns keeps collecting meaningful while capping where it goes.
 
 Apply the depth floor *after* `MONSTER_DIFFICULTY_SCALE` rather than before, or raise the floor's cap
 to `1 / 0.75`. Do not take it without reading the clamping note in `ramp.ts` — done carelessly it moves
-item placement too, and depth 1 must not move. [Arcs](arcs.md) dissolve the problem instead, by giving
+item placement too, and depth 1 should not move as fallout. [Arcs](arcs.md) dissolve the problem instead, by giving
 each theme its own table to index within.
 
 ### Partial reset at a boundary
@@ -146,7 +146,7 @@ If only one: the second. If arcs and a shop land, max HP is the natural premium 
 
 `promising` · cosmetic · free art
 
-`playerSpriteFor(...)` with depth 1 = elf, so the hash pin holds untouched. **With arcs there is a
+`playerSpriteFor(...)` with depth 1 = elf, so depth 1 is untouched by it. **With arcs there is a
 better rule than a fixed gradient: beat an arc's boss, take its form for the next arc.** It is a
 feedback loop, it makes the share string tell a story, and the sprites are already loaded.
 

@@ -6,7 +6,7 @@
  * **Depth 1 is the baseline**: every knob reduces to the module constant named
  * beside it, so `ENTITY_COUNT` and friends mean what they say at the shallow
  * end. That is a property of the current tuning, not a promise — it was one,
- * until 2026-08-16 (see "Depth 1 is not frozen" in PLAN.md), and the two hashes
+ * until 2026-08-16 (invariant 1 in docs/design.md), and the two hashes
  * in `generator.test.ts` are now a tripwire you may re-bless rather than a
  * constraint you may not move.
  *

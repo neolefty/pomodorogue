@@ -184,8 +184,8 @@ describe('the depth ramp', () => {
    * deliberately: the port is finished and phase 6 is preserved in git, this
    * pinned only two seeds of the base pass at one depth (not the engine, the UI
    * or combat, which is where post-phase-6 bugs actually live), and the game
-   * needs balance changes at depth 1 that the rule forbade outright. See "Depth
-   * 1 is not frozen" in PLAN.md.
+   * needs balance changes at depth 1 that the rule forbade outright. See
+   * invariant 1 in docs/design.md.
    *
    * What survives is worth keeping. The generator is fully deterministic, so
    * these cannot flake, and an unintended change to placement or to the shape

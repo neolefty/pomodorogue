@@ -132,8 +132,33 @@ Small, unblocked, and owned by nobody.
 - **A favicon, and a manifest to go with it.** `public/` is sprites only, so the tab is blank — sixteen
   times a day, for a game whose whole premise is that its tab is one of the ones you keep. `index.html`
   also claims `mobile-web-app-capable` with no manifest behind it.
-- **`floorTiles` covers walls too.** The name is inherited from the original, where it was worth
-  keeping for side-by-side reading. The port is done, so the reason is gone. Renaming is mechanical.
+- **The post-port rename pass.** A list deferred since phase 3 "to after the port, when `docs/port/`
+  is deleted". Both halves are now due. Found 2026-08-16 while reading for legibility; the first item
+  is the worst of them.
+    - **`entityCount` means covers.** `ENTITY_COUNT = 15`, `entityCountFor(depth)` and
+      `makeEntities(…, entityCount, monsterCount)` all count *covered items*, in files where
+      `entities`, `EntityId`, `GameState.entities` and `makeEntities` itself mean the ordinary thing.
+      The doc comments say "cover" throughout, so only the names are wrong. Inherited from the
+      original's `entity-count`, and the identifier most likely to mislead somebody reading cold.
+      `coverCount` and friends.
+    - **`floorTiles` covers walls too.** Still true after the flatten to `Tile[]`: the representation
+      changed and the misleading name did not. The name was worth keeping for side-by-side reading
+      with the original; the port is done, so the reason is gone. `tiles`.
+    - **`Placement` is bound to `g` at every call site** in `generator/entities.ts`. `b` for
+      `Builder` is at least mnemonic; `g` is not short for anything in the name it carries.
+    - **"golden hash" now names nothing.** The constant is `DEPTH_1_HASHES`, renamed on 2026-08-16
+      when the ratchet became a tripwire (invariant 1 in [design.md](design.md)), and the old term
+      survives only in history. The connotation is backwards: *golden* is testing vocabulary for an
+      expected output you do not touch, which is exactly the property that was dropped. Keep the old
+      term where it reports history, and make each such mention name the current constant once, so
+      the term has a landing place instead of dead-ending.
+- **Cover growth is capped by the monster constant.** `entityCountFor` is
+  `ENTITY_COUNT + Math.min(MONSTER_COUNT, depth - 1)`, so covers stop growing at depth 6 because
+  *monsters* do. The two caps genuinely coincide today, which is what makes it a trap: tuning monsters
+  silently retunes loot, and the comment explaining why covers grow at all ("deep covers are emptier,
+  so loot would dry up on the schedule the monsters got worse on") is an argument for the two moving
+  *together*, not for one reading the other's constant. Give the cover ramp its own cap, even if it
+  starts equal. Found 2026-08-16.
 
 ---
 
