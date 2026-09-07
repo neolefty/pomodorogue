@@ -9,9 +9,10 @@ incapable of making a level harder past a point, and a progressive player become
 somewhere around depth 10. Both are verified against the code and written up in
 [findings.md](findings.md). **Nothing about the replacement is decided.**
 
-**Depth 1 is out of scope, permanently.** It is hash-pinned and byte-identical to the original, a
-player who presses Start over every break gets exactly that game, and nothing designed here may reach
-them.
+**Depth 1 is in scope, but only on purpose.** It is hash-pinned as a tripwire, not frozen (invariant
+1 in [design.md](../design.md)): a balance fix aimed at depth 2+ must not move depth 1 as fallout, and
+an idea that *wants* to change the level a Start-over player meets every break says so, and argues
+for it on its own. Since 2026-08-16 that argument is allowed to win.
 
 ---
 
@@ -23,7 +24,7 @@ them.
 | Status | Brainstorm and design sketch. Not scheduled, not started, nothing committed to. |
 | Blocked on | [Measurement](findings.md#measure-before-tuning) — nobody has bot-played a deep run |
 | Files this would touch | `src/game/generator/ramp.ts`, `src/game/content/`, `src/game/carry.ts`, `src/game/engine/combat.ts`, `scripts/gen-sprites.ts` |
-| Files this must not change the behavior of | `src/game/generator/*` at `depth === 1` — `generator.test.ts` pins two depth-1 seeds by hash |
+| Files this must not change the behavior of *by accident* | `src/game/generator/*` at `depth === 1` — `generator.test.ts` pins two depth-1 seeds by hash. Moving them is allowed; the commit says why. |
 
 ## The five documents
 
@@ -61,8 +62,10 @@ Bill leans to 3, while wanting to keep 1 "as is, somehow."
 **They are not exclusive, and [arcs](arcs.md) is the structure that makes all three true at different
 scales** — which is the main argument for it:
 
-- **Route 1 is depth 1, kept literally as is.** Not approximated, not re-tuned: the same bytes, still
-  hash-pinned. A player who presses Start over every break gets the original game.
+- **Route 1 is depth 1, kept as the standalone game.** A player who presses Start over every break
+  gets a self-contained level that owes nothing to the arcs. That is "as is" in shape, not in bytes:
+  depth 1 may still be re-tuned for its own sake, which is the one change the old hash ratchet
+  forbade and the reason it was retired.
 - **Route 2 becomes the arc boundary**, which is a far more legible place for a reset than every level.
   A per-level fraction is a tax the player feels constantly and cannot plan around; a per-arc squeeze
   is a rhythm they can play toward.

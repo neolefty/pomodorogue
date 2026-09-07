@@ -32,9 +32,10 @@ you ever want the reasoning behind a particular line. Everything still true was 
 
 ## What is built
 
-- **A faithful port.** Generation, combat, monster AI, fog of war, share string. **Depth 1 is
-  byte-identical to the original and hash-pinned**, which is what keeps "did this work before the
-  pomodoro changes?" a question anyone can still answer.
+- **A faithful port.** Generation, combat, monster AI, fog of war, share string. The finished port
+  is preserved in git at `f6b54bc`; depth 1 is *not* frozen to it (invariant 1 in
+  [docs/design.md](docs/design.md)), because the level a fixed-mode player meets sixteen times a day
+  is the one the game most needs to be free to improve.
 - **The pomodoro gate.** 25 minutes of work earns a 5-minute break; breaks do not stack; the break
   clock starts on the player's first action, so working past the bell costs nothing.
 - **Freeze and resume.** A level that outlasts its break persists exactly as it stands and continues in

@@ -49,7 +49,6 @@ export function addItemToInventory(
   // readonly tuple and `Draft<T>` strips readonly, so a plain entity is not
   // assignable into the draft. The value genuinely is plain, so the cast is sound.
   inventory.push(castDraft(item))
-  draft.log.push({ type: 'item', name: item.name })
   return false
 }
 
@@ -94,6 +93,5 @@ export function uncoverItem(
  */
 export function finishLevel(draft: Draft<GameState>): boolean {
   draft.outcome = 'cleared'
-  draft.log.push({ type: 'outcome', outcome: 'cleared', moves: draft.moves })
   return true
 }

@@ -79,11 +79,9 @@ export function combat(
   // into a fresh object here and now, so the later write cannot reach it.
   const fatal = killed ? { victim: summarize(me), killer: summarize(them) } : null
 
-  // Values, captured before anything is written: the marker goes where the
-  // victim stood, and the log wants the names the fight started with.
+  // Captured before anything is written: the marker goes where the victim
+  // stood, and the death block below moves them.
   const myPos: Pos = [me.pos[0], me.pos[1]]
-  const theirName = them.name
-  const myName = me.name
 
   me.stats.hp.cur = updatedHp
 
@@ -106,14 +104,6 @@ export function combat(
   if (hpReduction > 0) {
     addEntity(draft, makeCollisionMarker(allocId(draft), myPos))
   }
-
-  draft.log.push({
-    type: 'combat',
-    from: theirName,
-    to: myName,
-    damage: hpReduction,
-    killed,
-  })
 
   if (killed) {
     me.dead = true

@@ -91,8 +91,13 @@ const RUN_SLOT: Slot = { key: 'pomodorogue.run', schemaVersion: 2 }
  * v2: phase 8 renamed the `'descended'` outcome to `'cleared'`. Nothing about
  * the shape changed, which is exactly the danger — a v1 level would load
  * cleanly and then show a choice screen whose every branch reads false.
+ *
+ * v3: the write-only `log` field is gone. A v2 level would load and play
+ * perfectly well without it, since nothing ever read it — but the rule here is
+ * that a shape change bumps the version, and buying an exception for the one
+ * case that looks safe is how the rule stops being one.
  */
-const LEVEL_SLOT: Slot = { key: 'pomodorogue.level', schemaVersion: 2 }
+const LEVEL_SLOT: Slot = { key: 'pomodorogue.level', schemaVersion: 3 }
 
 /**
  * localStorage, or null where the browser refuses it — Safari's private mode

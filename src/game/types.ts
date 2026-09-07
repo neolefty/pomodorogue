@@ -50,7 +50,10 @@ export interface Stats {
 
 /**
  * A dead entity reduced to what actually gets rendered for it: the tombstone
- * and share string read nothing but the sprite, and the log wants the name.
+ * and share string read nothing but the sprite. `name` is kept for the label a
+ * sprite cannot carry — the share string's kill row is a line of bare emoji
+ * with no alt text today, and that is the thing it would need. Nothing reads it
+ * as of 2026-08-16, when the event log that used to was deleted.
  *
  * The original stored whole `Entity` copies in `kills`/`killed-by`, which was
  * harmless there — one level, discarded daily. Here it is not: phase 7 persists
@@ -300,13 +303,16 @@ export const emptyStatistics = (): Statistics => ({
  */
 export const levelsPlayed = (stats: Statistics): number => stats.levelsCleared + stats.deaths
 
-export type LogEntry =
-  | { type: 'start'; seed: number; depth: number }
-  | { type: 'combat'; from: string; to: string; damage: number; killed: boolean }
-  | { type: 'item'; name: string }
-  | { type: 'outcome'; outcome: Outcome; moves: number }
-
-/** One generated level plus everything that happens in it. */
+/**
+ * One generated level plus everything that happens in it.
+ *
+ * There is no event log here, and there was one until 2026-08-16. The original
+ * kept a `:game-log` and only ever `console.log`'d it (`ui.cljs:24`), so the
+ * port inherited a field four call sites wrote and nothing read — while paying
+ * for it in every level persisted to localStorage. If a message log is ever
+ * wanted it should be built for a screen that shows it, which is a different
+ * shape from a transcript of everything.
+ */
 export interface GameState {
   /** This level's seed, derived as `hashSeed(runSeed, depth)`. */
   seed: number
@@ -335,5 +341,4 @@ export interface GameState {
   outcome: Outcome | null
   /** How many of each collectible the level contains, for the completion bars. */
   counts: Record<string, number>
-  log: LogEntry[]
 }

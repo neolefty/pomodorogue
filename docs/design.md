@@ -176,8 +176,10 @@ no toggle. Both are branches of the choice above, and all three branches are one
 Three properties fall out, and they are why this beats a setting:
 
 - **The first level is identical either way** — depth 1, no carry, both branches.
-- **Fixed mode needs no special-casing.** The depth ramp is inert at depth 1, `applyCarry` is skipped
-  when carry is null, the share string shows a depth only when there is one.
+- **Fixed mode needs no special-casing.** The depth ramp reduces to its baseline at depth 1,
+  `applyCarry` is skipped when carry is null, the share string shows a depth only when there is one.
+  Fixed mode *is* the Start-over branch — "a fresh depth-1 elf every break" — and not a promise about
+  what that level contains. Depth 1 may change, deliberately; see invariant 1.
 - **Neither mode needs a name in the UI.** The buttons say "Descend" and "Start over".
 
 A settings toggle was rejected: it asks the player to commit before they know what they want, it needs
@@ -232,15 +234,41 @@ same test the share string uses — derived, not branched on a flag.
 
 Breaking one of these is a design decision, not a refactor.
 
-### 1. Depth 1 is byte-identical to the original
+### 1. Depth 1 changes on purpose, never as fallout
 
-`generator.test.ts` pins two depth-1 seeds by hash. Fixed mode is a faithful clone rather than an
-approximation of one, and that is what keeps "did this work before the pomodoro changes?" a live
-question. Every knob in `ramp.ts` is an identity at depth 1 — by construction, not by care.
+`generator.test.ts` pins two depth-1 seeds by hash, and the hashes are a **tripwire, not a ratchet**.
+They say "depth-1 generation changed"; they do not say it was wrong. A change that moves them is
+re-blessed in the same commit, and that commit says what moved and why. Every knob in `ramp.ts`
+reduces to its module constant at depth 1, which is where the current tuning starts, not a property
+anything may rely on.
 
-Any fix to progressive-mode balance must therefore live somewhere depth 1 never reaches. `applyCarry`
-is the natural home; the combat maths is not, because summing weapons is what the original does within
-a level too.
+The rule this replaced, from 2026-08-12 to 2026-08-16, was that depth 1 stays byte-identical to the
+original forever, so that fixed mode was the faithful clone and "did this work before the pomodoro
+changes?" stayed answerable. It went for four reasons, recorded here because the wording above is
+easy to re-tighten by accident:
+
+- **The port is preserved in git**, at `f6b54bc`, checkoutable and playable. The hash was only ever a
+  forward promise that new code keeps reproducing that build; dropping the promise does not drop the
+  artifact.
+- **It was a narrow guarantee sold as a broad one.** Two seeds of the base pass at one depth. Nothing
+  about the engine, the UI or combat, which is where a post-port bug actually lives, so the question it
+  claimed to keep answerable was never answered by it.
+- **It forbade the change the game most needs.** Depth 1 is what a fixed-mode player sees sixteen
+  times a day, and it is not yet interesting enough to bear that. Making it more interesting *is* a
+  depth-1 generation change.
+- **It taxed shape changes twice.** Invariant 8 answers a `GameState` shape change with a version
+  bump. The ratchet answered the same event with a prove-it-was-a-no-op ritual. Only one of them
+  scaled.
+
+What survives is the preference, and it is the part worth keeping: **a fix aimed at depth 2+ should
+not reach depth 1 as a side effect.** `applyCarry` is the natural home for progressive-mode balance
+because it never runs at depth 1; the combat maths is not, because summing weapons is what the
+original does within a level too. When depth 1 does change it is because somebody decided depth 1
+should play differently, and the commit says so.
+
+Two things the hashes cannot see, so do not lean on them for these: the ramp's curve above depth 1
+(every knob is at its baseline at the only depth they hash, so a curve change needs its own
+assertion) and anything the overlay pass (invariant 4) will one day add.
 
 ### 2. Explicit RNG, no global patching
 
@@ -352,6 +380,11 @@ The engine is written as pure `state -> state` reducers, but there is exactly on
 entry point the UI holds** (plus `expireAnimation`). Immer earns its keep on the nested writes; it is
 *not* what keeps the memoized entity index alive, since every turn moves the player and the index
 rebuilds regardless.
+
+**A reducer that changed nothing returns the same object.** Callers use reference identity to decide
+whether the player acted — the break clock starts on that signal — so a refused move must not hand back
+a fresh state. Immer will not do this for you: a draft written before the refusal is discovered counts
+as modified whatever the outcome, so return the original explicitly, as `startBreakClock` does.
 
 ### 10. Tiles are a flat array; entities are a per-turn index
 

@@ -10,7 +10,7 @@
 
 | | |
 |---|---|
-| Scope | Candidate game elements for depth 2+. Depth 1 stays byte-identical (hash-pinned in `generator.test.ts`). |
+| Scope | Candidate game elements for depth 2+. Depth 1 is not frozen, but changes to it are argued separately (invariant 1 in [design.md](../design.md)). |
 | Status | Brainstorm. Nothing scheduled, nothing decided. |
 | Companion docs | [arcs.md](arcs.md) — arcs, beats, shop. [ingredients.md](ingredients.md) — the balance and economy levers. [findings.md](findings.md) — why the old ramp ran out. This doc fills that structure with content. |
 | Input vocabulary | Four arrow keys. Every idea here must be expressible as *walking into something*. |

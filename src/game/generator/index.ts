@@ -76,7 +76,6 @@ export function makeBaseLevel(request: LevelRequest, content: ContentProvider): 
     combatants: {},
     outcome: null,
     counts,
-    log: [{ type: 'start', seed, depth: request.depth }],
   }
 }
 

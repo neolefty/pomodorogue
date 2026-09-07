@@ -44,7 +44,6 @@ function makeState(over: Partial<GameState> = {}): GameState {
     combatants: {},
     outcome: 'cleared',
     counts: {},
-    log: [],
     ...over,
   }
 }
@@ -145,8 +144,8 @@ describe('share string', () => {
   })
 
   describe('depth', () => {
-    // Fixed mode never leaves depth 1, so its string stays byte-identical to
-    // phase 6's — the same test the tombstone uses to hide its run lines.
+    // Fixed mode never leaves depth 1, so its string never names one — the
+    // same test the tombstone uses to hide its run lines.
     it('names the depth only once there is one worth naming', () => {
       expect(shareText(makeState(), stats()).split('\n')[0]).toBe('#Pomodorogue 4242')
       expect(shareText(makeState({ depth: 4 }), stats()).split('\n')[0]).toBe(

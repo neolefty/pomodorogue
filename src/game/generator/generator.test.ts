@@ -11,6 +11,7 @@ import { makeBaseLevel, makeLevel } from './index.ts'
 import {
   depthFloor,
   difficultyAtDepth,
+  DUG_PERCENTAGE,
   dugPercentageFor,
   entityCountFor,
   ENTITY_COUNT,
@@ -173,41 +174,50 @@ describe('level contents', () => {
 
 describe('the depth ramp', () => {
   /**
-   * **Depth 1 must generate exactly what it generated before the ramp existed.**
+   * **A tripwire, not a ratchet.** These hashes say "depth-1 generation changed"
+   * — they do not say it was wrong. If a change moves them, decide whether you
+   * meant to and re-bless them; that is a normal thing to do here.
    *
-   * Fixed mode is the phase-6 game — the faithful clone the whole port was
-   * aiming at — so "did this work at phase 6?" has to stay an answerable
-   * question for as long as a player can choose that branch. Every knob in
-   * `ramp.ts` is written to be an identity at depth 1, and this is what says so.
+   * They were a ratchet until 2026-08-16. The rule was that depth 1 must stay
+   * byte-identical to the phase-6 build forever, because fixed mode *is* the
+   * phase-6 game and "did this work at phase 6?" had to stay askable. Dropped
+   * deliberately: the port is finished and phase 6 is preserved in git, this
+   * pinned only two seeds of the base pass at one depth (not the engine, the UI
+   * or combat, which is where post-phase-6 bugs actually live), and the game
+   * needs balance changes at depth 1 that the rule forbade outright. See
+   * invariant 1 in docs/design.md.
    *
-   * These hashes were taken from the build immediately before the ramp landed.
-   * **A change here that moves them is a bug in the change, not in the test** —
-   * do not update the constants without a deliberate decision to give fixed
-   * mode up. The generator is fully deterministic, so they cannot flake.
+   * What survives is worth keeping. The generator is fully deterministic, so
+   * these cannot flake, and an unintended change to placement or to the shape
+   * of `GameState` shows up here as a failing test rather than as a level that
+   * quietly got different. What they cannot see is the ramp's curve above
+   * depth 1 — every knob reduces to its baseline at the only depth they hash —
+   * so a change to the curve needs its own assertion, not this one.
+   * Re-blessing is one line, and
+   * the commit that does it should say what moved and why.
    */
-  const GOLDEN_DEPTH_1: Record<number, string> = {
-    1: 'ca32280fde276b42',
-    12345: '735f7cec0786d605',
+  const DEPTH_1_HASHES: Record<number, string> = {
+    1: '645bda2034b75734',
+    12345: '6f196c61793db594',
   }
 
-  it('generates depth 1 byte-identically to the pre-ramp build', () => {
-    for (const [runSeed, golden] of Object.entries(GOLDEN_DEPTH_1)) {
+  it('generates depth 1 the same way it did at the last re-blessing', () => {
+    for (const [runSeed, expected] of Object.entries(DEPTH_1_HASHES)) {
       const state = makeBaseLevel({ runSeed: Number(runSeed), depth: 1 }, builtinContent)
       const hash = createHash('sha256').update(JSON.stringify(state)).digest('hex').slice(0, 16)
-      expect(hash, `runSeed ${runSeed}`).toBe(golden)
+      expect(hash, `runSeed ${runSeed}`).toBe(expected)
     }
   })
 
-  it('is the identity at depth 1, knob by knob', () => {
-    // The hash above would catch any of these on its own, but it cannot say
-    // *which*. This can, which is the difference between a failed build and a
-    // diagnosed one.
+  it('reduces to the named constants at depth 1', () => {
+    // Depth 1 is the baseline the module constants describe — the ramp adds to
+    // them rather than replacing them. Also the diagnosis for the hash above,
+    // which can say *that* depth-1 generation moved but not *which knob* did.
     expect(depthFloor(1)).toBe(0)
     expect(difficultyAtDepth(0.42, 1)).toBe(0.42)
     expect(entityCountFor(1)).toBe(ENTITY_COUNT)
     expect(monsterCountFor(1)).toBe(MONSTER_COUNT)
-    // rot-js's own default, so passing it explicitly changes nothing.
-    expect(dugPercentageFor(1)).toBe(0.2)
+    expect(dugPercentageFor(1)).toBe(DUG_PERCENTAGE)
   })
 
   it('raises difficulty with depth without ever reaching past 1', () => {
@@ -251,7 +261,7 @@ describe('the depth ramp', () => {
     // there are tiles to stand on.
     expect(monsterCountFor(500)).toBe(monsterCountFor(6))
     expect(entityCountFor(500)).toBe(entityCountFor(6))
-    expect(dugPercentageFor(500)).toBeCloseTo(0.3)
+    expect(dugPercentageFor(500)).toBe(dugPercentageFor(11))
   })
 })
 

@@ -52,8 +52,8 @@ Three consequences, in descending order of how much they matter:
 
 **The one-line patch, if [arcs](arcs.md) never happen:** apply the depth floor *after* the scale rather
 than before, or raise the floor's cap to `1 / 0.75`. Small change, real risk — it moves item placement
-too if done carelessly, and depth 1 must not move. Do not take it without reading the clamping note in
-`ramp.ts`.
+too if done carelessly, and depth 1 should not move as a side effect of it. Do not take it without
+reading the clamping note in `ramp.ts`.
 
 ---
 
@@ -93,9 +93,10 @@ range that has stopped widening. There is currently no chance of failure in the 
 is the deep player too strong?* The two look identical from one playthrough and want opposite
 corrections. The answer is **too strong**, and not marginally.
 
-The fix must not touch depth 1 (invariant 1 in [design.md](../design.md)), which rules out capping the
-effect in combat — summing weapons is what the original does within a level too. That leaves
-`applyCarry`, and the leading candidate there is
+The fix should prefer not to touch depth 1 (invariant 1 in [design.md](../design.md)), which counts
+against capping the effect in combat — summing weapons is what the original does within a level too,
+so a cap changes depth 1 as fallout of a depth-2+ problem. That favours `applyCarry`, which never runs
+at depth 1, and the leading candidate there is
 [fusion](ingredients.md#fusion--the-stairs-melt-your-pack-down).
 
 ---

@@ -13,6 +13,13 @@ into multi-level runs on a pomodoro cycle. [PLAN.md](PLAN.md) says where things
 stand; [docs/design.md](docs/design.md) is how it works and what the code holds
 to; [docs/threads.md](docs/threads.md) is everything unfinished.
 
+**Just want Rogule in TypeScript?** Commit
+[`f6b54bc`](https://github.com/neolefty/pomodorogue/tree/f6b54bc55c921ed0de0c14c49367268e4ea058ec) is the
+finished port and nothing else: the original game, one level, no timer, no
+depth. Everything after it is Pomodorogue's own design, and depth 1 is free to
+drift from the original from there on. If you want to fork Rogule but start
+from React rather than ClojureScript, that commit is the jumping-off point.
+
 ## Development
 
 Stack: Vite + React 19 + TypeScript, Vitest for tests. Package manager is

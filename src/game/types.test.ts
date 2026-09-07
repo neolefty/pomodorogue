@@ -70,7 +70,6 @@ function sampleState(): GameState {
     combatants: { e2: true },
     outcome: null,
     counts: { mushroom: 3, chestnut: 1 },
-    log: [{ type: 'start', seed: 12345, depth: 1 }],
   }
 }
 

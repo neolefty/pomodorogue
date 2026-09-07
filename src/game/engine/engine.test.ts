@@ -51,7 +51,6 @@ function makeTestState(entities: Entity[]): GameState {
     combatants: {},
     outcome: null,
     counts: {},
-    log: [{ type: 'start', seed: 1, depth: 1 }],
   }
 }
 
@@ -194,7 +193,13 @@ describe('combat', () => {
       const hit = next.entities[PLAYER_ID]!
       expect(hit.stats!.hp.cur).toBe(4)
       expect(hit.dead).toBeUndefined()
-      expect(next.log.at(-1)).toMatchObject({ type: 'combat', damage: 0, killed: false })
+      // No collision marker: one is spawned only when the blow actually lands,
+      // so the entity count is what says "absorbed" rather than "missed".
+      expect(Object.keys(next.entities)).toHaveLength(Object.keys(state.entities).length)
+      // The exchange did happen, though: both parties are offered to the
+      // combat list and `addToCombatList` drops the player, whose health is
+      // already on screen. So the attacker alone is what a fight looks like.
+      expect(next.combatants).toEqual({ m1: true })
     }
   })
 
@@ -253,14 +258,15 @@ describe('the kill site', () => {
     // makes this the test guarding it. Get it wrong and walking onto a corpse
     // re-fights it and blocks the player forever.
     const state = killed()
-    const combatBefore = state.log.filter((e) => e.type === 'combat').length
     const hpBefore = state.entities[PLAYER_ID]!.stats!.hp.cur
 
     const next = takeTurn(state, 'right', rng())
 
     expect(next.entities[PLAYER_ID]!.pos).toEqual([3, 2])
     expect(next.entities[PLAYER_ID]!.stats!.hp.cur).toBe(hpBefore)
-    expect(next.log.filter((e) => e.type === 'combat')).toHaveLength(combatBefore)
+    // `combatants` is cleared at the top of every turn and written only by a
+    // survived exchange, so an empty one is this turn saying no fight happened.
+    expect(next.combatants).toEqual({})
     expect(next.entities[PLAYER_ID]!.kills).toHaveLength(1)
   })
 
@@ -354,7 +360,6 @@ describe('outcomes', () => {
       (s) => s.entities[PLAYER_ID]!.dead === true,
     )
     expect(next.outcome).toBe('died')
-    expect(next.log.at(-1)).toMatchObject({ type: 'outcome', outcome: 'died' })
   })
 
   it('sets cleared when the player reaches the shrine', () => {
@@ -415,11 +420,17 @@ describe('what costs a turn', () => {
     expect(next.entities[PLAYER_ID]!.animation).toMatchObject({ name: 'bump-right' })
   })
 
-  it('does not count a walk into a wall', () => {
-    const next = takeTurn(makeTestState([player([1, 1])]), 'left', rng())
+  it('does not count a walk into a wall, and hands back the same state', () => {
+    const state = makeTestState([player([1, 1])])
+    const next = takeTurn(state, 'left', rng())
+
+    // Identity, not equality. A caller decides whether the player has *acted*
+    // by comparing references — `App`'s `move` starts the break clock on it —
+    // and Immer marks the draft modified before the wall is discovered, so
+    // without the guard in `takeTurn` this is a new object every time.
+    expect(next).toBe(state)
     expect(next.moves).toBe(0)
     expect(next.entities[PLAYER_ID]!.pos).toEqual([1, 1])
-    expect(next.entities[PLAYER_ID]!.moved).toBe(false)
   })
 
   it('counts an ordinary step', () => {
@@ -430,13 +441,12 @@ describe('what costs a turn', () => {
 })
 
 describe('item encounters', () => {
-  it('picks an item up without blocking, and logs it', () => {
+  it('picks an item up without blocking', () => {
     const state = makeTestState([player([2, 2]), item('i1', [3, 2])])
     const next = takeTurn(state, 'right', rng())
     expect(next.entities['i1']).toBeUndefined()
-    expect(next.entities[PLAYER_ID]!.inventory).toHaveLength(1)
+    expect(next.entities[PLAYER_ID]!.inventory).toMatchObject([{ name: 'chestnut' }])
     expect(next.entities[PLAYER_ID]!.pos).toEqual([3, 2])
-    expect(next.log.at(-1)).toEqual({ type: 'item', name: 'chestnut' })
   })
 
   it('heals by three, capped at max', () => {

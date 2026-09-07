@@ -190,9 +190,11 @@ function placeCoveredItem(b: Builder, g: Placement): void {
   const { room } = g.rng.pick(candidates)
   const tile = g.rng.pick(freeTilesInRoom(room, b))
   const pos = posOfIndex(b.size, tile)
-  // Deliberately unclamped, as the original had it: a difficulty above 1 means
-  // this cover hides nothing at all. `difficultyAtDepth` is applied to the raw
-  // value and cannot introduce a clamp, so depth 1 is untouched.
+  // Deliberately unclamped, as the original had it. This difficulty is a
+  // probability threshold (`rng.next() > difficulty`), so overflowing 1 is
+  // meaningful rather than out of range: it is how the original says "nothing
+  // under this one". Contrast `placeMonster`, which clamps because its value
+  // indexes a table.
   const difficulty =
     difficultyAtDepth(
       posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable),
@@ -256,9 +258,13 @@ function placeMonster(b: Builder, g: Placement): void {
   // The original threw on a full map; skipping is divergence 2 in the port doc.
   if (b.freeTiles.size === 0) return
   const pos = posOfIndex(b.size, takeFreeTile(b, g.rng))
-  // The clamp is `placeMonster`'s own and stays exactly where it was, *after*
-  // the scale — `placeCoveredItem` has no equivalent, and moving either would
-  // change depth-1 placement. Depth raises the floor under the raw value only.
+  // Clamped after the scale, but not to stay in range — `pickMonsterIndex`
+  // clamps every index it derives, so an over-1 value cannot read past the
+  // table. What it would do is centre the ±2 blur beyond the last entry and
+  // pile all 12 weight units onto the hardest monster; the clamp keeps the
+  // blur alive at the top of the table. The asymmetry with `placeCoveredItem`
+  // above is still deliberate: overflowing a threshold means something there,
+  // while overflowing here would only flatten a distribution.
   const difficulty = Math.min(
     difficultyAtDepth(
       posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable),

@@ -26,8 +26,10 @@ export default defineConfig({
   test: {
     globals: true,
     // `src/game/` is deliberately DOM-free (invariant 6 in docs/design.md), so a
-    // node environment is enough. Component tests will need jsdom; see "Test the
-    // pomodoro state machine" in docs/threads.md.
+    // node environment is the default and the DOM-free rule gets a second
+    // enforcer: a stray `document` in the engine fails rather than quietly
+    // working. `App.test.tsx` asks for jsdom in its own docblock, which is the
+    // only file that needs one.
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
