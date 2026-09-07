@@ -32,9 +32,13 @@ const COLUMNS: { title: string; cell: (r: DepthRecord) => string; align: 'left' 
   { title: 'monsters', cell: (r) => mix(r.monsters), align: 'left' },
 ]
 
-/** The first depth at which armour covers the level's hardest blow, or null. */
-export const firstImmuneDepth = (records: DepthRecord[]): number | null =>
-  records.find((r) => r.armour >= r.maxHit)?.depth ?? null
+/**
+ * The depths on which armour covers the level's hardest blow. Not a threshold:
+ * a level's mix can outgrow the pack again, so a run is starred at depths 2
+ * and 3, unstarred at 4, and starred from 5 on. Read the column, not a "from".
+ */
+export const immuneDepths = (records: DepthRecord[]): number[] =>
+  records.filter((r) => r.armour >= r.maxHit).map((r) => r.depth)
 
 /** Total turns, so the sweep can be compared with a break at one move a second. */
 const totalTurns = (records: DepthRecord[]): number => records.reduce((n, r) => n + r.turns, 0)
@@ -53,13 +57,13 @@ export function formatDepthTable(title: string, records: DepthRecord[]): string 
       .trimEnd()
 
   const ending = runEnding(records)
-  const immune = firstImmuneDepth(records)
+  const immune = immuneDepths(records)
   const summary = [
     `${ending.outcome} at depth ${ending.depth}`,
     `${totalTurns(records)} turns in all (${(totalTurns(records) / 60).toFixed(0)} min at one move a second)`,
-    immune === null
-      ? 'never immune to a level'
-      : `immune to the level from depth ${immune} (* marks armour ≥ maxhit)`,
+    immune.length === 0
+      ? 'immune to no level'
+      : `immune to ${immune.length} of ${records.length} levels, first at depth ${immune[0]} (* marks armour ≥ maxhit)`,
   ].join('; ')
 
   return [

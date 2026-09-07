@@ -122,6 +122,15 @@ reach 20–35 by depth 10 (the bot's XP itself reaches ~35, one point per two ki
 whose toughest hit points are 15. The finding above calls weapons "the smaller half"; in play they are
 the half that ends fights before the armour question is even asked.
 
+**Immunity is per level, not a threshold crossed once.** On seed 3 the bot is covered at depths 2 and
+3, exposed again at 4, 6 and 7 as ogres and vampires outnumber the shields, and covered from 8 on.
+The table's summary line counts the covered levels and names the first; it does not say "from".
+
+**Max HP never moves.** It is 10 at depth 1 and 10 at depth 25, with XP past 90 and nothing in
+`src/game/` that raises it. That is the third reason the bar is so low: armour and weapons grow
+without bound against a pool that does not, so a blow that gets through at depth 20 is exactly as
+dangerous as one at depth 1, and the only question is whether any get through.
+
 **Gear accumulates at about 0.6 armour per level** (16 by depth 25), below the "roughly one shield per
 level" guess, and it does not matter: the threshold it needs to cross is 5, not 10.
 

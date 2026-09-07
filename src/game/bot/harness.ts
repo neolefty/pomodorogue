@@ -58,9 +58,17 @@ export interface DepthRecord {
   hpStart: number
   hpEnd: number
   hpMax: number
-  /** HP lost to blows this level, before regeneration and potions. */
+  /**
+   * HP lost between turns this level. A regeneration tick or a potion picked
+   * up on the same turn as a blow hides a point of it, so this is a floor on
+   * the damage dealt, not the sum of the blows.
+   */
   damageTaken: number
-  /** Blows that landed for more than zero. Zero with monsters fought is immunity. */
+  /**
+   * Turns on which HP fell. Two monsters striking in one turn count once, so
+   * this is a floor too. Zero with monsters fought is immunity, and that
+   * reading is exact: nothing hides a blow on a turn where no HP came back.
+   */
   hitsTaken: number
   /** Inventory totals at the end of the level — the gear-accumulation columns. */
   armour: number
@@ -93,7 +101,10 @@ const monsterNames = (state: GameState): string[] =>
  *
  * Damage is measured by watching the player's HP fall between turns rather
  * than by instrumenting combat: the engine is not touched, and a fall in HP
- * is the only thing a blow does that the player can feel.
+ * is the only thing a blow does that the player can feel. The turn order is
+ * the player's move, then regeneration, then the monsters' blows, so a regen
+ * tick on the same turn as a blow nets out; see `DepthRecord` for what that
+ * does to the two counts.
  */
 function playLevel(
   policy: Policy,
