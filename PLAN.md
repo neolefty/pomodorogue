@@ -45,6 +45,9 @@ you ever want the reasoning behind a particular line. Everything still true was 
 - **Depth.** A finished level offers a choice; HP, inventory and XP carry down the stairs; difficulty
   ramps; death ends the run and `maxDepth` is the score. Two ways to play and no mode flag anywhere in
   the code.
+- **The deep-run harness.** A headless bot plays depths 1–25 in seconds behind a `Policy` seam built
+  for several play styles, and the test that says the deep game is losable fails on purpose until
+  fusion lands.
 
 ## What is next
 
@@ -53,9 +56,11 @@ great deal before balance is worth optimizing — but interesting enough at dept
 the obvious thing to do. Decided 2026-09-07; the reasoning is in
 [docs/progression/README.md](docs/progression/README.md#suggested-order).
 
-1. **[The harness, as a failing test](docs/threads.md#the-deep-game-is-unlosable).** A headless bot
-   over depths 1–25 with one assertion: a shield-collecting bot cannot die past depth 4 or so. It fails
-   today. It prints the per-depth table as a side effect, to read rather than to tune toward.
+1. **[The harness, as a failing test](docs/threads.md#the-deep-game-is-unlosable). Built 2026-09-07.**
+   A headless bot over depths 1–25 with one assertion: a shield-collecting bot cannot die past depth 4
+   or so. It fails today, as `it.fails` in `src/game/bot/harness.test.ts`, and `pnpm deep-run` prints
+   the per-depth table, to read rather than to tune toward. What it showed is in
+   [findings.md](docs/progression/findings.md#measured-2026-09-07).
 2. **[Fusion](docs/progression/ingredients.md#fusion--the-stairs-melt-your-pack-down)**, in
    `applyCarry`. Makes the test pass, and is the first built instance of [the break matures your
    inventory](docs/progression/elements.md#the-pomodoro-native-mechanics) — the pattern the rest of the
