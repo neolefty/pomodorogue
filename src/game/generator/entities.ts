@@ -258,10 +258,13 @@ function placeMonster(b: Builder, g: Placement): void {
   // The original threw on a full map; skipping is divergence 2 in the port doc.
   if (b.freeTiles.size === 0) return
   const pos = posOfIndex(b.size, takeFreeTile(b, g.rng))
-  // Clamped after the scale, because this value indexes the monster table via
-  // `pickMonsterIndex` and anything over 1 would point past the end. That is
-  // why the asymmetry with `placeCoveredItem` above is real and not an
-  // oversight: a threshold may overflow, an index may not.
+  // Clamped after the scale, but not to stay in range — `pickMonsterIndex`
+  // clamps every index it derives, so an over-1 value cannot read past the
+  // table. What it would do is centre the ±2 blur beyond the last entry and
+  // pile all 12 weight units onto the hardest monster; the clamp keeps the
+  // blur alive at the top of the table. The asymmetry with `placeCoveredItem`
+  // above is still deliberate: overflowing a threshold means something there,
+  // while overflowing here would only flatten a distribution.
   const difficulty = Math.min(
     difficultyAtDepth(
       posToDifficulty(g.playerPos, pos, g.roomPaths, g.passable),

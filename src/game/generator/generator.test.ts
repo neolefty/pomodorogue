@@ -188,9 +188,12 @@ describe('the depth ramp', () => {
    * 1 is not frozen" in PLAN.md.
    *
    * What survives is worth keeping. The generator is fully deterministic, so
-   * these cannot flake, and an unintended change to placement, to the depth
-   * ramp, or to the shape of `GameState` shows up here as a failing test rather
-   * than as a level that quietly got different. Re-blessing is one line, and
+   * these cannot flake, and an unintended change to placement or to the shape
+   * of `GameState` shows up here as a failing test rather than as a level that
+   * quietly got different. What they cannot see is the ramp's curve above
+   * depth 1 — every knob reduces to its baseline at the only depth they hash —
+   * so a change to the curve needs its own assertion, not this one.
+   * Re-blessing is one line, and
    * the commit that does it should say what moved and why.
    */
   const DEPTH_1_HASHES: Record<number, string> = {
@@ -258,7 +261,7 @@ describe('the depth ramp', () => {
     // there are tiles to stand on.
     expect(monsterCountFor(500)).toBe(monsterCountFor(6))
     expect(entityCountFor(500)).toBe(entityCountFor(6))
-    expect(dugPercentageFor(500)).toBeCloseTo(0.3)
+    expect(dugPercentageFor(500)).toBe(dugPercentageFor(11))
   })
 })
 
