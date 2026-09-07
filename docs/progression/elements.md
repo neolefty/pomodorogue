@@ -58,6 +58,8 @@ Every idea below is tagged with what it costs. Cheap-and-deep beats expensive-an
 
 **This is the flagship section.** Every roguelike has terrain and monsters; no other roguelike has a guaranteed, known-length, real-time interval between plays during which the player is *doing something virtuous*. Time-away is a resource. Spend it.
 
+**The pattern has a name: the break matures your inventory.** Bill's framing, 2026-09-07: whatever the player carries out of one level should be *worked on* by the work session and come back changed at the next — seeds sprout, dough rises, an egg hatches, savings bear interest, a pack melts down into one good blade, a boss you let escape reestablishes itself deeper down. Everything should spin out of earlier interactions, and it should feel like reward or progression *through* the work sessions, not despite them. Mechanically it is one thing: a pass over the carried state between plays, which is the post-pass bin in [README.md](README.md#where-an-idea-lands-in-code) and where `applyCarry` already lives. [Fusion](ingredients.md#fusion--the-stairs-melt-your-pack-down) is its zero-interval case and the first of it to build; everything below is the same pass reading an interval counter.
+
 The shared mechanism for all of these: a counter of **completed work intervals**, which `Run` can already almost express, ticked once per cycle. Everything below is "N intervals elapsed → transform" — one mechanism, many skins. All are `x-break` and all are inert in fixed mode by construction, because a fresh run has no elapsed intervals — the same trick the whole descend design uses. That counter is also the *only* form in which time may enter `src/game/`: a count, computed in `src/pomodoro/` and passed as data, never a timestamp or a clock (invariant 6's lint rule stays intact) — which makes every mechanic in this section testable by handing the game layer an integer.
 
 ### The garden — plant during a break, harvest two breaks later
@@ -79,6 +81,17 @@ Item transformation on the same counter: dough → 🍞 bread (the heal, per [in
 ### The work interval is the heal
 
 Already proposed in [ingredients.md](ingredients.md#the-work-interval-is-the-heal) ("you rest while you work"); listed here because it is the *floor* of this whole section — the minimum viable pomodoro-native mechanic, and the one to build first to prove the counter plumbing.
+
+### Bosses escape, and savings bear interest
+
+`raw` · both added 2026-09-07 · both need run history
+
+Two more skins on the same pass, noted so they are not lost. **A boss you leave alive** (or that
+flees at low HP) turns up again some levels deeper, stronger for the intervals in between — the
+dungeon remembers what you did not finish. **Coins left unspent** grow on the interval counter, which
+gives the shop a reason to exist before the shop does: hold or spend is a decision only if holding
+does something. Both need the run to carry history forward, which is what the overlay seam is for and
+does not yet do; they wait on it.
 
 ### The candle level
 

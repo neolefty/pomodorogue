@@ -48,16 +48,24 @@ you ever want the reasoning behind a particular line. Everything still true was 
 
 ## What is next
 
-1. **[Measure the deep game](docs/threads.md#measure-the-deep-game).** A headless bot over depths 1–25.
-   Nothing about depth 2+ should be tuned before it exists, and everything in `docs/progression/`
-   currently rests on arithmetic rather than measurement.
-2. **[Shared seeds](docs/shared-seeds.md).** Fully designed and ready to build — the next
-   feature-sized thing.
-3. **[Progression](docs/progression/README.md).** The big one, and nothing about it is decided. The
-   depth ramp is arithmetically incapable of getting harder, and a progressive player becomes
-   unhittable around depth 10. Brainstorming is open.
+**The goal is to make the game interesting, now.** Not balanced — the game is expected to change a
+great deal before balance is worth optimizing — but interesting enough at depth 2 that going deeper is
+the obvious thing to do. Decided 2026-09-07; the reasoning is in
+[docs/progression/README.md](docs/progression/README.md#suggested-order).
 
-Two small things are worth doing whatever happens to the rest:
-[fusion](docs/progression/ingredients.md#fusion--the-stairs-melt-your-pack-down), which fixes a
-confirmed defect, and [ascend](docs/progression/ingredients.md#ascend--the-third-button), which makes a
-deep run bankable and so unblocks the measurement everything else needs.
+1. **[The harness, as a failing test](docs/threads.md#the-deep-game-is-unlosable).** A headless bot
+   over depths 1–25 with one assertion: a shield-collecting bot cannot die past depth 4 or so. It fails
+   today. It prints the per-depth table as a side effect, to read rather than to tune toward.
+2. **[Fusion](docs/progression/ingredients.md#fusion--the-stairs-melt-your-pack-down)**, in
+   `applyCarry`. Makes the test pass, and is the first built instance of [the break matures your
+   inventory](docs/progression/elements.md#the-pomodoro-native-mechanics) — the pattern the rest of the
+   pomodoro-native mechanics share.
+3. **The level plan.** `planFor(runSeed, depth) → LevelPlan`, one data record consumed by the whole
+   generator. The framework a level-2 element switches on through.
+4. **A real level 2.** One or two elements from the
+   [shortlist](docs/progression/elements.md#a-shortlist-if-five-things-get-built), on from depth 2
+   via the plan, played for a week.
+
+Parked by decision: [shared seeds](docs/shared-seeds.md) and Ascend. Everything unfinished is in
+[docs/threads.md](docs/threads.md); the two defects worth slipping in anywhere are the unmutable bell
+and the help text that never mentions the pomodoro.

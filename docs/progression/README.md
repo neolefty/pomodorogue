@@ -21,8 +21,8 @@ for it on its own. Since 2026-08-16 that argument is allowed to win.
 | | |
 |---|---|
 | Scope | Balance and progression from depth 2 onward |
-| Status | Brainstorm and design sketch. Not scheduled, not started, nothing committed to. |
-| Blocked on | [Measurement](findings.md#measure-before-tuning) — nobody has bot-played a deep run |
+| Status | Brainstorm and design sketch. The short-term order is in [PLAN.md](../PLAN.md#what-is-next): harness, fusion, the level plan, then a real level 2. |
+| Blocked on | Nothing. Balance is deliberately *not* being optimized yet — the game is expected to change a lot first — but structure and elements are open. |
 | Files this would touch | `src/game/generator/ramp.ts`, `src/game/content/`, `src/game/carry.ts`, `src/game/engine/combat.ts`, `scripts/gen-sprites.ts` |
 | Files this must not change the behavior of *by accident* | `src/game/generator/*` at `depth === 1` — `generator.test.ts` pins two depth-1 seeds by hash. Moving them is allowed; the commit says why. |
 
@@ -105,24 +105,38 @@ and zero new kinds.
 
 ---
 
-## Suggested order, if the whole direction is taken
+## Suggested order
 
-1. **Measure.** Bot-play depths 1–25. Everything below is tuned against these numbers.
-2. **Fusion**, in `applyCarry`. Smallest change, fixes the armour finding, compresses the display.
-   Independent of arcs.
-3. **Ascend**, at the shrine. Unblocks deep playtesting by making a deep run bankable.
-4. **Expand and theme the sprite tables.** Hand-curated, no generation. Prerequisite for arcs.
-5. **One level plan.** Consolidate `ramp.ts` into a single `planFor(runSeed, depth) → LevelPlan` —
-   plain data (beat, theme, curriculum entry, counts, knobs) computed once at the top of
-   `makeBaseLevel` and consumed by the generator, instead of call sites pulling knobs independently.
-   The depth-1 identity property becomes one assertion (`planFor(seed, 1)` equals the original's
-   constants), the determinism test keeps its two-scalars shape, and the measurement harness can
-   sweep plans without generating levels. Do this *before* arcs, not during — beat, theme and
-   curriculum are all plan fields, and without the plan they smear across the generator.
+The first four are the short-term plan as of 2026-09-07 and are repeated in
+[PLAN.md](../PLAN.md#what-is-next); the rest is the longer direction, if it is taken.
+
+1. **The harness, as a failing test.** Bot-play depths 1–25 and assert the one thing already known:
+   a shield-collecting bot cannot die past depth 4 or so. Print the per-depth table from
+   [findings.md](findings.md#measure-before-tuning) as a side effect. **Not a tuning target** — the
+   game is expected to change a lot before balance is worth optimizing, and the harness is there to
+   keep that change honest.
+2. **Fusion**, in `applyCarry`. Smallest change, fixes the armour finding, makes the test pass,
+   compresses the display. Independent of arcs, and the first built instance of
+   [the break matures your inventory](elements.md#the-pomodoro-native-mechanics).
+3. **One level plan.** Consolidate `ramp.ts` into a single `planFor(runSeed, depth) → LevelPlan` —
+   plain data (beat, theme, curriculum entry, counts, knobs, which elements are switched on) computed
+   once at the top of `makeBaseLevel` and consumed by the generator, instead of call sites pulling
+   knobs independently. The depth-1 identity property becomes one assertion (`planFor(seed, 1)`
+   equals the original's constants), the determinism test keeps its two-scalars shape, and the harness
+   can sweep plans without generating levels. **This is the framework a level-2 element fits into**:
+   "packs from depth 2", "a locked door on this level", "theme: deep sea" are all plan fields, and
+   without the plan each one grows its own `if (depth >= n)` inside the generator. Do it before the
+   elements, not during.
+4. **A real level 2.** One or two elements from the [shortlist](elements.md#a-shortlist-if-five-things-get-built)
+   that live in the cheap bins — feeding is a table column and a flag; packs and sleepers are two
+   AI flags on the existing monster table — switched on by the plan at depth 2 and up, then played
+   for a week. The point is to learn what an element *feels* like sixteen times a day, which no
+   arithmetic can tell you, and to see how it fits the plan before more are added.
+5. **Expand and theme the sprite tables.** Hand-curated, no generation. Prerequisite for arcs.
 6. **Arcs and beats**, in the base pass via `ContentProvider` and the plan.
 7. **The shop**, as a room you walk through.
 8. **The work-interval heal**, and bread as its currency.
 9. **Transformation**, once themes exist to transform into.
 
-**Steps 2 and 3 are worth doing whatever happens to the rest** — the first fixes a confirmed defect,
-the second unblocks the measurement everything else needs.
+Parked, by decision: Ascend and shared seeds. See
+[threads.md](../threads.md#parked-by-decision) for why.

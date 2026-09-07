@@ -41,6 +41,11 @@ This is "carry only your best weapon and armour" with the sharp edge filed off. 
 away everything a careful player collected, which feels like punishment for playing well; diminishing
 returns keeps collecting meaningful while capping where it goes.
 
+Fusion is also the first built instance of a larger pattern — **the break matures your inventory**,
+in [elements.md](elements.md#the-pomodoro-native-mechanics): a pass over the carried state between
+plays, of which fusion is the zero-interval case. Build it so the next tenant (dough, eggs, the heal)
+lands beside it rather than in a second seam.
+
 ### Reconcile the depth floor with the difficulty scale
 
 `promising` · fixes the [ceiling finding](findings.md#the-ramp-compresses-variety-it-cannot-raise-the-ceiling)
@@ -87,21 +92,26 @@ equipment, which is a trade, which is a decision.
 
 ### Ascend — the third button
 
-`promising` · unblocks deep playtesting · small
+`declined` for now · small · would want arcs
 
 Retire voluntarily at a shrine: bank your depth, keep `maxDepth` as the score. Failure stays total; the
-player chooses when to stop risking it. This is the cheap half of the fix for [dying deep costing three
-hours](../threads.md#dying-deep-costs-three-hours), which is probably the reason nobody has played deep
-enough to tune anything. **With arcs, the arc boundary is the obvious place to offer it** — you have
-just beaten a boss, and "keep going or bank it?" is exactly the right question at exactly that moment.
+player chooses when to stop risking it. Not a way to win — a way to quit while ahead.
+
+It was proposed as the fix for "dying deep costs hours, so nobody goes deep, so nothing can be tested."
+That diagnosis was withdrawn on 2026-09-07 (see [threads.md](../threads.md#parked-by-decision)):
+nobody has gone deep because the game is not yet interesting, and a deep death costing a few breaks is
+acceptable once the next run is different enough to be worth starting. **If it comes back, the arc
+boundary is where** — you have just beaten a boss, and "keep going or bank it?" is exactly the right
+question at exactly that moment.
 
 ### Bones
 
-`promising` · the better half of the same fix · needs the overlay pass
+`promising` · makes the next run remember the last · needs the overlay pass
 
 You find your own skull from a previous run, with part of your old pack on it. Zero new player-facing
-rules, softens death's cost without removing failure, and it is emotionally the best thing a permadeath
-game can do. **This genuinely is history, so unlike arcs it belongs in the overlay pass** — it would be
+rules, and it is emotionally the best thing a permadeath game can do. Note it is *not* here to soften
+death — that is not wanted — but because it makes the next run different from the last, which is the
+actual answer to a deep death. **This genuinely is history, so unlike arcs it belongs in the overlay pass** — it would be
 its first real tenant.
 
 ---
@@ -118,7 +128,8 @@ looking away.
 
 **Completing a work interval restores HP.** You rest while you work. It removes the mash-to-heal
 incentive, and a fixed-mode player already starts every level at full HP so nothing about depth 1
-changes. Add it *alongside* the per-move regeneration rather than replacing it.
+changes. Add it *alongside* the per-move regeneration rather than replacing it. One of
+[the break matures your inventory](elements.md#the-pomodoro-native-mechanics), and the simplest.
 
 ### Max HP should have a curve
 

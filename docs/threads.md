@@ -8,37 +8,29 @@ concrete step would be. Nothing here is in progress.
 [progression/](progression/README.md). If an item here grows past a paragraph, it graduates into its
 own doc and this file keeps a one-line pointer.
 
-**The four that actually matter**, if you read no further: [measure the deep
-game](#measure-the-deep-game), [progression](#progression--the-big-one), [shared
-seeds](#shared-seeds), and [there is no way to mute the bell](#what-announces-a-transition).
+**The three that actually matter**, if you read no further: [progression](#progression--the-big-one),
+[the deep game is unlosable](#the-deep-game-is-unlosable), and [there is no way to mute the
+bell](#what-announces-a-transition). The short-term order of work is in [PLAN.md](../PLAN.md#what-is-next).
 
 ---
 
-## Blocking other work
+## Known defects
 
-### Measure the deep game
+### The deep game is unlosable
 
-**Nothing about depth 2+ should be tuned until this exists.** `src/game/` runs in bare Node with no
-DOM (invariant 6), so a script that generates depths 1–25 and drives a greedy bot through them gives
-the real gear-accumulation curve, the real time-per-level and the real monster mix in seconds, instead
-of the week of pomodoros that playing it would take. `takeTurn` already takes an injected `Rng`.
+Past depth 4 or so, a player who survived and picked up a few shields cannot die: incoming damage is
+`max(0, rng.int(monsterXp) - armour)`, armour stacks without a cap, and the ramp never spawns anything
+past the vampire. Both halves are worked through in
+[progression/findings.md](progression/findings.md); the fix for the armour half is
+[fusion](progression/ingredients.md#fusion--the-stairs-melt-your-pack-down).
 
-Everything in [progression/](progression/README.md) currently rests on arithmetic rather than
-measurement. **Next step:** write the harness. See
-[progression/findings.md](progression/findings.md#measure-before-tuning) for exactly which numbers it
-needs to produce.
-
-### Dying deep costs three hours
-
-`advanceRun`'s retry branch sends the player back to depth 1 with the same seed. At depth 1 that reads
-correctly as "the same level again". At depth 7 it costs about three hours of pomodoros, which makes
-Descend a no-brainer to avoid for any cautious player — **so nobody goes deep enough to test the deep
-game.** This is the most likely single reason the ramp is unmeasured.
-
-Softening death is the wrong fix; failure should stay total. The two candidates are **Ascend** (retire
-voluntarily at a shrine and bank `maxDepth`) and **bones** (find your own skull from a previous run).
-See [progression/ingredients.md](progression/ingredients.md). Ascend is the smaller change and the one
-that unblocks measurement.
+**Next step: write the failing test.** `src/game/` runs in bare Node with no DOM (invariant 6), and
+`takeTurn` takes an injected `Rng`, so a script that generates depths 1–25 and drives a greedy bot
+through them runs in seconds. Its one assertion is the characterization above — *a shield-collecting
+bot cannot die past depth N* — and it should fail today and pass once fusion lands. The same run prints
+the per-depth table [findings.md](progression/findings.md#measure-before-tuning) asks for, but that
+table is a printout to read, not a target to tune toward: the game is expected to change a great deal
+before balance is worth optimizing, and the harness exists to keep that change honest, not to steer it.
 
 ---
 
@@ -97,7 +89,7 @@ start gets, which is the thing [shared-seeds.md](shared-seeds.md) deliberately d
 
 The share string names a level anyone can go and play, and a link opens it. Fully designed in
 [shared-seeds.md](shared-seeds.md), including the gate rule that keeps a player from sending themselves
-sixteen links. **This is the next feature-sized thing that is ready to build.**
+sixteen links. Ready to build, and parked (see below) until the level-2 work has a verdict.
 
 ### Progression — the big one
 
@@ -174,3 +166,13 @@ Not open — recorded so nobody reopens them by accident.
 - **A seeded combat stream.** Nothing repeats exactly for anyone, including you, and that is the
   intended shape — there is no leaderboard. Small to add, large to unmake once anyone relies on it.
   **Revisit only if players ask for it.**
+- **Ascend, and softening death generally.** The docs used to argue that dying at depth 7 costs three
+  hours of pomodoros, so nobody would go deep, so the deep game could not be tested, so a button to
+  retire and bank `maxDepth` was needed. Bill's call on 2026-09-07: that is the wrong diagnosis.
+  Nobody has gone deep because the game is not yet interesting and nobody has been told it exists. A
+  deep death costing a few breaks' worth of play is fine, and what makes it fine is enough content that
+  the next run is different. Failure stays total. The one place Ascend might return is an arc boundary
+  — "you just beat the boss; keep going or bank it?" — and that waits on arcs.
+- **Shared seeds.** Designed and ready to build, but it competes for attention with making the game
+  interesting and does not inform that question. Parked 2026-09-07 until the level-2 work has produced
+  a verdict.

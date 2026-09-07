@@ -2,7 +2,7 @@
 
 **Outcome:** the share string names a level anyone can go and play, and a link opens it. "This one was brutal — two vampires and not a weapon in sight" becomes something you can hand to someone.
 
-**Status:** designed, not started. This is the next feature-sized thing that is ready to build.
+**Status:** designed, not started, and parked on 2026-09-07 until the level-2 work has a verdict (see [threads.md](threads.md#parked-by-decision)). Ready to build when it is picked up.
 
 ## What identifies a level
 
