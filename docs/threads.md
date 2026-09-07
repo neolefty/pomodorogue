@@ -24,13 +24,21 @@ past the vampire. Both halves are worked through in
 [progression/findings.md](progression/findings.md); the fix for the armour half is
 [fusion](progression/ingredients.md#fusion--the-stairs-melt-your-pack-down).
 
-**Next step: write the failing test.** `src/game/` runs in bare Node with no DOM (invariant 6), and
-`takeTurn` takes an injected `Rng`, so a script that generates depths 1–25 and drives a greedy bot
-through them runs in seconds. Its one assertion is the characterization above — *a shield-collecting
-bot cannot die past depth N* — and it should fail today and pass once fusion lands. The same run prints
-the per-depth table [findings.md](progression/findings.md#measure-before-tuning) asks for, but that
-table is a printout to read, not a target to tune toward: the game is expected to change a great deal
-before balance is worth optimizing, and the harness exists to keep that change honest, not to steer it.
+**The failing test exists**, since 2026-09-07: `src/game/bot/harness.test.ts` drives a
+shield-collecting bot from depth 1 to 25 and asserts that some run which got past depth 4 dies. It is
+written with `it.fails`, so the suite stays green while the defect stands; flip it to a plain `it`
+when fusion lands. The harness (`runDeep`, in `src/game/bot/harness.ts`) is the run loop `App.tsx`
+performs across a day of breaks with the clock taken out, and the bot is one `Policy` behind a seam
+built for several — see the code map in [design.md](design.md#code-map).
+
+The same run prints the per-depth table [findings.md](progression/findings.md#measure-before-tuning)
+asks for, one table per seed, and `pnpm deep-run [seeds…]` prints it without running the suite. Read
+it left to right: `dmg`/`hits` are what landed on the player that level, `armour`/`weapons` are the
+pack's totals at the end of it, and `maxhit` is the hardest blow the level could land, starred when
+armour already covers it. What it shows today is in
+[findings.md](progression/findings.md#measured-2026-09-07). **It is a printout to read, not a target
+to tune toward**: the game is expected to change a great deal before balance is worth optimizing, and
+the harness exists to keep that change honest, not to steer it.
 
 ---
 

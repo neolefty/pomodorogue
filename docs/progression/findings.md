@@ -101,17 +101,53 @@ at depth 1, and the leading candidate there is
 
 ---
 
+## Measured 2026-09-07
+
+The first run of the harness below, with its one reckless policy (`collector` in `src/game/bot/`:
+nearest shield first, then any item, then any cover, then the shrine, walking into whatever is in the
+way). Twenty seeds to depth 12, and four to depth 25. Numbers from `pnpm deep-run`; rerun it rather
+than trusting these once anything under `src/game/` moves.
+
+**The deep game is bimodal: die at depth 1 or 2, or never.** Ten of twenty seeds kill the bot at
+depth 1 or 2 — it takes every fight with 10 HP, which is the coin flip `engine.test.ts` already notes
+for a depth-1 player walked straight at the shrine. All ten that get past depth 2 reach depth 12, and
+both that were run on reach depth 25. No run died between depths 3 and 25.
+
+**Immunity arrives far earlier than the estimate above, and for a second reason it did not weigh.**
+Armour covers the level's hardest possible blow (`max(xp) − 1`, usually 5 for a vampire) from depth 1
+to 7 on the surviving seeds, median about 4 — not depth 10–12. The last depth on which *any* blow
+landed was 6 or shallower on every survivor; on seed 2 nothing lands after depth 1 with armour still
+at 1, because **weapons kill on the first bump and a dead monster never retaliates.** Weapon totals
+reach 20–35 by depth 10 (the bot's XP itself reaches ~35, one point per two kills) against a table
+whose toughest hit points are 15. The finding above calls weapons "the smaller half"; in play they are
+the half that ends fights before the armour question is even asked.
+
+**Gear accumulates at about 0.6 armour per level** (16 by depth 25), below the "roughly one shield per
+level" guess, and it does not matter: the threshold it needs to cross is 5, not 10.
+
+**A level takes 75–300 turns, typically about 150** — two and a half minutes at one move a second, so
+a break fits a level with room to spare even for a bot that lifts every cover. The full 25-depth sweep
+is about 3,800 turns, an hour of play at that pace. `dugPercentageFor` is not the knob to reach for.
+
+**The compression finding holds empirically.** Depth 10 and below is ogres, vampires, zombies and
+genies, with a dragon through the blur every few levels and one t-rex in fifty deep levels.
+
+---
+
 ## Measure before tuning
 
 The two load-bearing numbers above — *when does armour reach immunity* and *how long does a deep level
-actually take* — are estimates. `src/game/` runs in bare Node with no DOM or React (invariant 6, kept
-precisely for this kind of thing), so both are cheaply measurable.
+actually take* — were estimates until the section above. `src/game/` runs in bare Node with no DOM or
+React (invariant 6, kept precisely for this kind of thing), so both are cheaply measurable.
 
 **A script that generates depths 1–25 and drives a greedy bot through them** gives all of it in seconds
 rather than the week of pomodoros that playing it would take. It needs no new infrastructure —
-`takeTurn` takes an injected `Rng`, and generation takes `{ runSeed, depth }` and nothing else.
+`takeTurn` takes an injected `Rng`, and generation takes `{ runSeed, depth }` and nothing else. **It
+exists:** `pnpm deep-run [seeds…]` prints one table per seed from `src/game/bot/harness.ts`, and
+`harness.test.ts` prints the same table on every `pnpm test`. The bot is one `Policy`; the seam is
+built for the others this table wants next ("with and without a greedy bot").
 
-What it has to produce:
+What it produces:
 
 | number | why |
 |---|---|
