@@ -3,6 +3,7 @@ import type { PomodoroConfig, Schedule } from './schedule.ts'
 import {
   breakDeadline,
   breakEnding,
+  breakJustStarted,
   breakExpired,
   breakRemaining,
   breaksAvailable,
@@ -230,6 +231,31 @@ describe('workJustStarted', () => {
   it('is false while the break is still running, so the bell cannot ring early', () => {
     expect(workJustStarted(cleared, DEADLINE - 1, CONFIG)).toBe(false)
     expect(workJustStarted(cleared, T0 + 90_000, CONFIG)).toBe(false)
+  })
+})
+
+describe('breakJustStarted', () => {
+  // The same break, now over: the work interval that followed it ends at OPENS.
+  const OPENS = DEADLINE + CONFIG.workMs
+  const worked = endBreakAtDeadline(inProgress, T0 + 90_000, CONFIG)
+
+  it('is true for a break just noticed opening, and stays true through a throttled tick', () => {
+    expect(breakJustStarted(worked, OPENS, CONFIG)).toBe(true)
+    expect(breakJustStarted(worked, OPENS + MINUTE, CONFIG)).toBe(true)
+  })
+
+  it('is false once the news is stale, so a woken laptop hears no chime', () => {
+    expect(breakJustStarted(worked, OPENS + CONFIG.bellWindowMs, CONFIG)).toBe(false)
+    expect(breakJustStarted(worked, OPENS + 60 * MINUTE, CONFIG)).toBe(false)
+  })
+
+  it('is false while the work interval is still running, so the chime cannot sound early', () => {
+    expect(breakJustStarted(worked, OPENS - 1, CONFIG)).toBe(false)
+    expect(breakJustStarted(worked, DEADLINE, CONFIG)).toBe(false)
+  })
+
+  it('is false on a first visit, whose break was never waited for', () => {
+    expect(breakJustStarted(initialSchedule(), T0, CONFIG)).toBe(false)
   })
 })
 

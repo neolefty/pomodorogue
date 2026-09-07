@@ -45,8 +45,8 @@ export interface PomodoroConfig {
    */
   warnMs: number
   /**
-   * How late the work interval's start may be *noticed* and still be worth
-   * announcing. See {@link workJustStarted}.
+   * How late either end of the break may be *noticed* and still be worth
+   * announcing. See {@link workJustStarted} and {@link breakJustStarted}.
    *
    * Two minutes is picked to sit above every legitimate delay and below every
    * illegitimate one. A visible tab notices within a second; a hidden one is
@@ -255,25 +255,42 @@ export const restRemaining = (
 ): number => until(workStartsAt(schedule, config), now)
 
 /**
- * Whether the work interval started recently enough that saying so out loud is
- * news rather than history.
+ * Whether `at` is recent enough that saying so out loud is news rather than
+ * history. Shared by the two sounds, which are the same question asked of the
+ * two ends of the break.
  *
  * The phase below is derived from a clock that only advances while someone is
- * watching, so `working` is entered when the transition is *noticed*, which is
- * not always when it happened. Sleep through a break and the tab wakes to a
- * work interval that began twenty minutes ago; ringing a bell for it announces
- * the past, at the one moment the player is certainly at the screen. Within
+ * watching, so a transition is *noticed* when the tab next ticks, which is not
+ * always when it happened. Sleep through a break and the tab wakes to a work
+ * interval that began twenty minutes ago; ringing a bell for it announces the
+ * past, at the one moment the player is certainly at the screen. Within
  * `bellWindowMs` the news is fresh and the player may well be across the room,
  * which is the case the bell exists for.
  */
+const justHappened = (at: number, now: number, config: PomodoroConfig): boolean => {
+  const since = now - at
+  return since >= 0 && since < config.bellWindowMs
+}
+
+/** Whether the work interval started recently enough to ring the bell for. */
 export const workJustStarted = (
   schedule: Schedule,
   now: number,
   config: PomodoroConfig,
-): boolean => {
-  const since = now - workStartsAt(schedule, config)
-  return since >= 0 && since < config.bellWindowMs
-}
+): boolean => justHappened(workStartsAt(schedule, config), now, config)
+
+/**
+ * Whether the break opened recently enough to chime for.
+ *
+ * The moment is `nextPlayableAt` itself, which a first visit sets to the epoch
+ * and the development skip sets to zero: both are ancient by this measure, so
+ * neither makes a sound, and neither should — nothing was waited for.
+ */
+export const breakJustStarted = (
+  schedule: Schedule,
+  now: number,
+  config: PomodoroConfig,
+): boolean => justHappened(schedule.nextPlayableAt, now, config)
 
 /**
  * Which of the cycle's three moments it is.

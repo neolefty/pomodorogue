@@ -4,7 +4,10 @@
  * Three concerns in three localStorage keys, each with its own version, so a
  * corrupt or outdated one cannot take down the others. This matters most for
  * the level: it is the slot whose shape changes, and it is the one we are
- * willing to throw away.
+ * willing to throw away. A fourth key holds the one preference the game has,
+ * whether the bell is muted; it is not part of {@link Saved} because nothing
+ * about the pomodoro depends on it, but it goes through the same envelope so
+ * that a corrupt value is discarded the same way.
  *
  * **On a version mismatch the response is to discard, never to migrate.**
  * Round-trippable through JSON is not the same property as
@@ -98,6 +101,8 @@ const RUN_SLOT: Slot = { key: 'pomodorogue.run', schemaVersion: 2 }
  * case that looks safe is how the rule stops being one.
  */
 const LEVEL_SLOT: Slot = { key: 'pomodorogue.level', schemaVersion: 3 }
+/** A boolean. Absent means unmuted: the sounds are the default, silence the choice. */
+const MUTED_SLOT: Slot = { key: 'pomodorogue.muted', schemaVersion: 1 }
 
 /**
  * localStorage, or null where the browser refuses it — Safari's private mode
@@ -154,6 +159,8 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const isNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
+
+const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean'
 
 function isSchedule(value: unknown): boolean {
   return (
@@ -263,3 +270,9 @@ export const saveLevel = (
   level: GameState | null,
   storage: Storage | null = defaultStorage(),
 ): void => write(LEVEL_SLOT, level, storage)
+
+export const loadMuted = (storage: Storage | null = defaultStorage()): boolean | null =>
+  read<boolean>(MUTED_SLOT, isBoolean, storage)
+
+export const saveMuted = (muted: boolean, storage: Storage | null = defaultStorage()): void =>
+  write(MUTED_SLOT, muted, storage)

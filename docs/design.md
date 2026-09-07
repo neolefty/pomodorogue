@@ -113,21 +113,37 @@ level in ninety seconds never hands you a longer wait than dawdling did.
 | `working` | the 25 minutes |
 
 Deriving is what lets the two paths into `working` — a level frozen on the deadline, and a level
-finished early whose break then ran out — need no separate handling, and what makes the bell one
+finished early whose break then ran out — need no separate handling, and what makes each sound one
 effect instead of two call sites.
 
-**The bell rings at break → work only.** That transition is what lets the player be away from the
-screen. The start of a break deliberately does *not* fire an alarm: being summoned to play is an
-interruption rather than a service. The sound is synthesized in `src/ui/useChime.ts` (three decaying
-sine partials, ~1.5s) — an `AudioContext` was needed either way, so a file would only have added a
-download, a license to track, and a fetch that can fail.
+**A sound at each end of the break, and they are not the same sound.** The bell at break → work is
+what lets the player be away from the screen; without it, telling them to step away is empty. The
+chime at work → break is what lets them be *at* work: without one, the player is pulled out of the
+work every few minutes to check whether it is time to play yet, and the checking is the distraction.
+A chime removes the need to poll the clock, so — for all that it is one more noise — it is the less
+distracting option. The two must be told apart without looking. The bell is a summons: one bright
+strike at 660 Hz with inharmonic partials, 1.5 seconds, loud enough to carry across a room. The chime
+is permission: two soft notes rising a fourth (330 → 440 Hz), harmonic, with a short attack instead of
+a strike, at roughly half the bell's volume. Quiet enough to miss mid-sentence, which is fine — the
+break keeps.
 
-Two things the hook has to keep doing: unlock on the **first user gesture of the session**, not the
-first move of the break (a player who reloads while the tombstone is up never acts again, and that is
-exactly the player who needs the bell); and call `resume()` on every ring, because sleep or a
+Both go through the same staleness guard. `workJustStarted` and `breakJustStarted` in `schedule.ts`
+say whether the transition happened within `bellWindowMs` of being noticed; a laptop woken an hour
+after either edge stays silent, because the news is old and the player is demonstrably at the
+screen. Neither sounds on the first phase the tab sees, for the same reason.
+
+Both are synthesized in `src/ui/useChime.ts` from small data records — an `AudioContext` was needed
+either way, so a file would only have added a download, a license to track, and a fetch that can
+fail. Two things the hook has to keep doing: unlock on the **first user gesture of the session**, not
+the first move of the break (a player who reloads while the tombstone is up never acts again, and
+that is exactly the player who needs the bell); and call `resume()` on every ring, because sleep or a
 backgrounded tab can suspend the context and a suspended context has a frozen `currentTime`.
 
-There is currently **no way to mute it**. See [threads.md](threads.md).
+**Both can be muted.** The bell-shaped button top right is the game's one setting. It silences both
+sounds at the source — no oscillator is made — and is persisted in its own localStorage slot
+(`pomodorogue.muted`, via `persistence.ts`) so it survives a reload. It is a UI preference and not
+part of the schedule: nothing about when a break opens depends on it. Unmuted is the default,
+because the sounds are the feature and silence is the choice.
 
 ### The choice at the end of a level
 
@@ -496,7 +512,7 @@ run-scoped rather than level-scoped.
 | `src/game/carry.ts` | `applyCarry` — the one post-pass over a base level |
 | `src/pomodoro/schedule.ts` | Pure gate logic. Takes `now` and `PomodoroConfig`. |
 | `src/pomodoro/run.ts` | `newRun`, `advanceRun` — the three-branch choice |
-| `src/pomodoro/persistence.ts` | Three versioned localStorage slots |
+| `src/pomodoro/persistence.ts` | Three versioned localStorage slots, plus the mute preference |
 | `src/pomodoro/usePomodoro.ts` | React binding: ticking clock, persistence |
 | `src/ui/` | React. `App.tsx` is the only place that mints entropy or reads the clock. |
 | `scripts/gen-sprites.ts` | Codegen for the sprite index and the SVGs |

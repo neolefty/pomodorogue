@@ -60,16 +60,19 @@ const CONFIG: PomodoroConfig = {
 /** A fixed epoch. Nothing here may read the real clock, tests included. */
 const T0 = 1_760_000_000_000
 
-// ***** the bell *****
+// ***** the bell and the chime *****
 
-let oscillators = 0
+/** The frequency of every oscillator made so far, in the order they were made. */
+let oscillators: { value: number }[] = []
 
 /**
  * Enough of the Web Audio API for `useChime`, which jsdom does not implement.
  *
- * Counting oscillators rather than mocking `ring` itself keeps the assertion on
- * the real question — was a sound made — through the real code, including the
- * gesture-unlock dance that decides whether one *can* be.
+ * Recording oscillators rather than mocking the ring functions themselves keeps
+ * the assertion on the real question — was a sound made, and which — through
+ * the real code, including the gesture-unlock dance that decides whether one
+ * *can* be. The frequencies are kept because the two sounds are only told
+ * apart by pitch: the chime is meant to sit below the bell.
  */
 class FakeAudioContext {
   currentTime = 0
@@ -80,12 +83,20 @@ class FakeAudioContext {
     connect: <T,>(node: T) => node,
   })
   createOscillator = () => {
-    oscillators += 1
-    return { frequency: { value: 0 }, connect: <T,>(node: T) => node, start: () => {}, stop: () => {} }
+    const frequency = { value: 0 }
+    oscillators.push(frequency)
+    return { frequency, connect: <T,>(node: T) => node, start: () => {}, stop: () => {} }
   }
 }
 
-const rang = (): boolean => oscillators > 0
+const rang = (): boolean => oscillators.length > 0
+
+/** The lowest pitch in whatever sounded, and forgets it — so the next sound is heard alone. */
+function heard(): number {
+  const lowest = Math.min(...oscillators.map((osc) => osc.value))
+  oscillators = []
+  return lowest
+}
 
 // ***** storage *****
 
@@ -117,7 +128,7 @@ class MemoryStorage implements Storage {
 
 beforeEach(() => {
   vi.stubGlobal('localStorage', new MemoryStorage())
-  oscillators = 0
+  oscillators = []
   vi.stubGlobal('AudioContext', FakeAudioContext)
   vi.useFakeTimers()
   vi.setSystemTime(T0)
@@ -433,6 +444,121 @@ describe('the bell', () => {
 
     await tick(500)
 
+    expect(rang()).toBe(false)
+  })
+})
+
+describe('the chime', () => {
+  /** Through one break and the work interval after it, up to the moment the next one opens. */
+  const throughToTheNextBreak = async () => {
+    mount()
+    rest()
+    await tick(CONFIG.breakMs + 1_000)
+    // The bell, heard and put aside: what follows is about the other sound.
+    heard()
+    await tick(CONFIG.workMs)
+  }
+
+  it('sounds when the break opens under the player’s nose', async () => {
+    await throughToTheNextBreak()
+
+    expect(rang()).toBe(true)
+    expect(screen.getByText('break')).toBeDefined()
+  })
+
+  it('is a different, lower sound from the bell', async () => {
+    mount()
+    rest()
+    await tick(CONFIG.breakMs + 1_000)
+    const bell = heard()
+
+    await tick(CONFIG.workMs)
+    const chime = heard()
+
+    // "You may stop" has to be told from "get back to work" without looking,
+    // and the one thing a listener can rely on is that the chime sits below.
+    expect(chime).toBeLessThan(bell)
+  })
+
+  it('stays silent for a break noticed an hour late', async () => {
+    mount()
+    rest()
+    await tick(CONFIG.breakMs + 1_000)
+    heard()
+
+    await wakeAt(T0 + CONFIG.breakMs + CONFIG.workMs + CONFIG.bellWindowMs + 60 * 60_000)
+
+    // Playable, and silently so: the player just opened the laptop, and a
+    // chime now would announce a break that has been waiting for an hour.
+    expect(screen.getByText('break')).toBeDefined()
+    expect(rang()).toBe(false)
+  })
+
+  it('does not sound for a tab opened mid-break', async () => {
+    saveRun(newRun())
+    // A break that opened half a minute ago, well inside the window.
+    localStorage.setItem(
+      'pomodorogue.schedule',
+      JSON.stringify({ schemaVersion: 1, data: { nextPlayableAt: T0 - 30_000, breakStartedAt: null } }),
+    )
+    mount()
+
+    await tick(500)
+
+    expect(rang()).toBe(false)
+  })
+})
+
+describe('the mute toggle', () => {
+  const mute = () => fireEvent.click(screen.getByRole('button', { name: 'mute the bell' }))
+  const unmute = () => fireEvent.click(screen.getByRole('button', { name: 'unmute the bell' }))
+
+  it('silences the bell and the chime alike', async () => {
+    mount()
+    mute()
+    rest()
+
+    await tick(CONFIG.breakMs + 1_000)
+    expect(screen.getByText('back to work')).toBeDefined()
+    await tick(CONFIG.workMs)
+    expect(screen.getByText('break')).toBeDefined()
+
+    // Both edges crossed, both sounds due, and not a single oscillator made:
+    // muted means silent at the source, not turned down.
+    expect(rang()).toBe(false)
+  })
+
+  it('is undone by a second press', async () => {
+    mount()
+    mute()
+    unmute()
+    rest()
+
+    await tick(CONFIG.breakMs + 1_000)
+
+    expect(rang()).toBe(true)
+  })
+
+  it('survives a reload', () => {
+    const view = mount()
+    mute()
+
+    view.unmount()
+    mount()
+
+    expect(screen.getByRole('button', { name: 'unmute the bell', pressed: true })).toBeDefined()
+  })
+
+  it('is reachable from the tombstone', async () => {
+    saveCrafted((state) => moveBesidePlayer(state, 'shrine'))
+    mount()
+    await tick(0)
+    press('ArrowRight')
+    expect(screen.getByText('rest of your break')).toBeDefined()
+
+    mute()
+
+    await tick(CONFIG.breakMs + 1_000)
     expect(rang()).toBe(false)
   })
 })

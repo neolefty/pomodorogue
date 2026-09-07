@@ -40,8 +40,9 @@ you ever want the reasoning behind a particular line. Everything still true was 
   clock starts on the player's first action, so working past the bell costs nothing.
 - **Freeze and resume.** A level that outlasts its break persists exactly as it stands and continues in
   the next one. Everything survives a browser reload.
-- **The rest of the break is yours.** Finishing early never costs you time, and a synthesized bell
-  announces the return to work so the player can be away from the screen.
+- **The rest of the break is yours.** Finishing early never costs you time. A synthesized bell
+  announces the return to work so the player can be away from the screen, and a softer chime
+  announces the break so they can stop watching the clock while they work. Both can be muted.
 - **Depth.** A finished level offers a choice; HP, inventory and XP carry down the stairs; difficulty
   ramps; death ends the run and `maxDepth` is the score. Two ways to play and no mode flag anywhere in
   the code.
@@ -67,5 +68,5 @@ the obvious thing to do. Decided 2026-09-07; the reasoning is in
    via the plan, played for a week.
 
 Parked by decision: [shared seeds](docs/shared-seeds.md) and Ascend. Everything unfinished is in
-[docs/threads.md](docs/threads.md); the two defects worth slipping in anywhere are the unmutable bell
-and the help text that never mentions the pomodoro.
+[docs/threads.md](docs/threads.md); the one defect worth slipping in anywhere is the help text that
+never mentions the pomodoro.
