@@ -139,6 +139,18 @@ button#help {
   left: 8px;
 }
 
+/*
+ * The mute toggle, opposite the help button. Above the modal's z-index so it
+ * stays reachable on the tombstone, which is where a player who finished early
+ * hears the bell ring.
+ */
+button#mute {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+}
+
 /***** the board *****/
 
 div.row {
@@ -385,11 +397,14 @@ span.xp {
   font-variant-numeric: tabular-nums;
 }
 
-/* While playing: small, top right, clear of the centred health bars. */
+/*
+ * While playing: small, top right, clear of the centred health bars and left
+ * of the mute button. The offset is the button's width in this rule's own em.
+ */
 .timer.break {
   position: absolute;
   top: 8px;
-  right: 8px;
+  right: 3em;
   font-size: 0.75em;
 }
 

@@ -29,6 +29,7 @@ import type { PomodoroConfig, Schedule } from '../pomodoro/schedule.ts'
 import {
   breakEnding,
   breakExpired,
+  breakJustStarted,
   breakRemaining,
   canPlay,
   DEFAULT_CONFIG,
@@ -46,10 +47,12 @@ import { Board } from './Board.tsx'
 import { HealthBars } from './HealthBars.tsx'
 import { Help } from './Help.tsx'
 import { Inventory } from './Inventory.tsx'
+import { MuteButton } from './MuteButton.tsx'
 import { Timer } from './Timer.tsx'
 import { Tombstone } from './Tombstone.tsx'
 import { useChime } from './useChime.ts'
 import { useKeyboard } from './useKeyboard.ts'
+import { useMuted } from './useMuted.ts'
 
 /**
  * Shown under the rest-of-the-break countdown. The point of the phase is to get
@@ -324,64 +327,76 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
   const phase = phaseAt(schedule, now, config)
   const playable = phase === 'playing'
 
-  // The bell, rung on the break → work edge and nowhere else. It is what lets
-  // the player be away from the screen when the break ends, which is the whole
-  // reason the rest of the break is worth having.
+  // The two sounds, one per edge of the break. The bell on break → work is
+  // what lets the player be away from the screen when the break ends, which is
+  // the whole reason the rest of the break is worth having. The chime on
+  // work → break is what lets them stop watching the clock while they work.
   //
-  // Both endings arrive here: a frozen level enters `working` the moment
-  // `advance` notices the deadline, and a finished one when the rest of the
-  // break runs out with the tombstone up. Neither needs a special case, because
-  // the phase is derived from the clock rather than signalled by the transition.
+  // Both endings arrive at the bell: a frozen level enters `working` the
+  // moment `advance` notices the deadline, and a finished one when the rest of
+  // the break runs out with the tombstone up. Neither needs a special case,
+  // because the phase is derived from the clock rather than signalled by the
+  // transition.
   //
-  // Which is also why `workJustStarted` has to be asked. Derived from the clock
-  // means noticed only when watched: a laptop shut through the end of a break
-  // crosses into `working` on the *next* thing that ticks, and a bell then is
-  // an announcement about twenty minutes ago, delivered to someone visibly at
-  // their desk. The edge is real, the news is stale, and only the second one
-  // deserves a sound.
-  const ring = useChime()
+  // Which is also why the staleness guards have to be asked. Derived from the
+  // clock means noticed only when watched: a laptop shut through the end of a
+  // break crosses into `working` on the *next* thing that ticks, and a bell
+  // then is an announcement about twenty minutes ago, delivered to someone
+  // visibly at their desk. The edge is real, the news is stale, and only the
+  // second one deserves a sound. The same holds for a break that opened an
+  // hour before anyone looked.
+  const [muted, toggleMuted] = useMuted()
+  const { ringWork, ringBreak } = useChime(muted)
   const rungFor = useRef(phase)
   useEffect(() => {
     if (rungFor.current === phase) return
     const previous = rungFor.current
     rungFor.current = phase
     // Not on the first phase seen: a tab opened mid-work-interval has not just
-    // been sent back to work, it was already there.
+    // been sent back to work, it was already there — and one opened mid-break
+    // was not just released from anything.
     if (phase === 'working' && previous !== 'working' && workJustStarted(schedule, now, config)) {
-      ring()
+      ringWork()
+    } else if (phase === 'playing' && breakJustStarted(schedule, now, config)) {
+      ringBreak()
     }
-  }, [config, now, phase, ring, schedule])
+  }, [config, now, phase, ringBreak, ringWork, schedule])
+
+  const mute = <MuteButton muted={muted} onToggle={toggleMuted} />
 
   if (level !== null && level.outcome !== null) {
     return (
-      <Tombstone
-        state={level}
-        run={run}
-        onChoose={choose}
-        footer={
-          phase === 'resting' ? (
-            // The level is over and the break is not. Phase 7 sent the player
-            // straight to a 25-minute countdown here, which punished finishing
-            // early; what is left of the break is theirs.
-            <>
+      <>
+        {mute}
+        <Tombstone
+          state={level}
+          run={run}
+          onChoose={choose}
+          footer={
+            phase === 'resting' ? (
+              // The level is over and the break is not. Phase 7 sent the player
+              // straight to a 25-minute countdown here, which punished finishing
+              // early; what is left of the break is theirs.
+              <>
+                <Timer
+                  className="timer rest"
+                  label="rest of your break"
+                  remainingMs={restRemaining(schedule, now, config)}
+                />
+                <p className="away">
+                  {ENCOURAGEMENT[levelsPlayed(run.statistics) % ENCOURAGEMENT.length]}
+                </p>
+              </>
+            ) : (
               <Timer
-                className="timer rest"
-                label="rest of your break"
-                remainingMs={restRemaining(schedule, now, config)}
+                className="timer next"
+                label="next break in"
+                remainingMs={timeUntilBreak(schedule, now)}
               />
-              <p className="away">
-                {ENCOURAGEMENT[levelsPlayed(run.statistics) % ENCOURAGEMENT.length]}
-              </p>
-            </>
-          ) : (
-            <Timer
-              className="timer next"
-              label="next break in"
-              remainingMs={timeUntilBreak(schedule, now)}
-            />
-          )
-        }
-      />
+            )
+          }
+        />
+      </>
     )
   }
 
@@ -419,6 +434,7 @@ export function App({ config = DEFAULT_CONFIG }: AppProps) {
         />
       )}
       <Help open={helpOpen} onToggle={toggleHelp} />
+      {mute}
     </>
   )
 }

@@ -8,9 +8,9 @@ concrete step would be. Nothing here is in progress.
 [progression/](progression/README.md). If an item here grows past a paragraph, it graduates into its
 own doc and this file keeps a one-line pointer.
 
-**The three that actually matter**, if you read no further: [progression](#progression--the-big-one),
-[the deep game is unlosable](#the-deep-game-is-unlosable), and [there is no way to mute the
-bell](#what-announces-a-transition). The short-term order of work is in [PLAN.md](../PLAN.md#what-is-next).
+**The two that actually matter**, if you read no further: [progression](#progression--the-big-one)
+and [the deep game is unlosable](#the-deep-game-is-unlosable). The short-term order of work is in
+[PLAN.md](../PLAN.md#what-is-next).
 
 ---
 
@@ -57,18 +57,23 @@ turns a break into a speedrun, which is the opposite of what a break is for.
 
 ### What announces a transition?
 
-Two halves are settled: **the end of the break should announce itself**, because that is what lets the
-player be away from the screen, and **the start of a break should not fire a fixed alarm**, because
-being summoned to play is an interruption rather than a service.
+Both ends of the break are now settled, and settled the same way: **each announces itself with its own
+sound.** The end of the break was never in doubt, because a bell is what lets the player be away from
+the screen. The start of the break was for a while decided the other way — being summoned to play
+looked like an interruption rather than a service — and Bill reversed that after living with it: with
+no chime, the player is pulled out of the work every few minutes to check whether it is time yet, and
+that checking is the interruption. A chime lets them stop polling the clock, so it is the less
+distracting of the two options. What it must not do is sound like the bell; it is softer, lower and
+rising, and reads as "you may stop" rather than "come here". Both can be muted from the button top
+right, which closed the one part of this thread that was a defect. The reasoning and the two sounds
+are in [design.md](design.md#finishing-early-keeps-the-rest-of-the-break).
 
-Open is everything else — a tone, a Web Notification, or either at the player's choice; what "pleasant"
-means when heard sixteen times a day; and where settings live, given the game has no settings UI at
-all. Expect to experiment rather than decide on paper.
-
-Two constraints for whoever picks it up. A Notification reaches a player who has switched applications,
-where audio from a backgrounded tab can be throttled or suspended outright. And **there is currently no
-way to mute a sound the game plays unprompted** — that is the minimum any answer has to fix, and it is
-the one part of this thread that is a defect rather than a design question.
+Open is what lies beyond a tone. A Web Notification reaches a player who has switched applications,
+where audio from a backgrounded tab can be throttled or suspended outright; whether to offer one, and
+whether instead of or as well as the sound, has not been tried. And nobody yet knows what "pleasant"
+means for a pair of sounds heard sixteen times a day — the current two are a first guess to live with,
+not a decision. Expect to experiment rather than decide on paper; there is now one toggle to hang a
+second setting next to, if a second one is ever needed.
 
 ### Should a shared level say how it went?
 

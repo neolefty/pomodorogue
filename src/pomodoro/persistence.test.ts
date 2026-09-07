@@ -6,9 +6,11 @@ import { emptyStatistics } from '../game/types.ts'
 import type { Run } from './persistence.ts'
 import {
   loadLevel,
+  loadMuted,
   loadRun,
   loadSchedule,
   saveLevel,
+  saveMuted,
   saveRun,
   saveSchedule,
 } from './persistence.ts'
@@ -80,6 +82,14 @@ describe('round trips', () => {
     expect(loadLevel(storage)).toEqual(level)
   })
 
+  it('restores the mute preference', () => {
+    const storage = memoryStorage()
+    saveMuted(true, storage)
+    expect(loadMuted(storage)).toBe(true)
+    saveMuted(false, storage)
+    expect(loadMuted(storage)).toBe(false)
+  })
+
   it('keeps the three slots independent', () => {
     const storage = memoryStorage()
     saveSchedule(SCHEDULE, storage)
@@ -97,6 +107,14 @@ describe('the load boundary', () => {
     expect(loadSchedule(storage)).toBeNull()
     expect(loadRun(storage)).toBeNull()
     expect(loadLevel(storage)).toBeNull()
+    // Null, not false: the caller decides what "never chosen" means.
+    expect(loadMuted(storage)).toBeNull()
+  })
+
+  it('discards a mute preference that is not a boolean', () => {
+    const storage = memoryStorage()
+    storage.setItem('pomodorogue.muted', JSON.stringify({ schemaVersion: 1, data: 'yes' }))
+    expect(loadMuted(storage)).toBeNull()
   })
 
   it('discards a slot written by a different schema version', () => {
