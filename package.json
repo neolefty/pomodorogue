@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
+    "deep-run": "tsx scripts/deep-run.ts",
     "gen:sprites": "tsx scripts/gen-sprites.ts"
   },
   "dependencies": {

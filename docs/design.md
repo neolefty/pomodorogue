@@ -494,6 +494,7 @@ run-scoped rather than level-scoped.
 | `src/game/content/` | `ContentProvider` interface and the built-in monster/item tables |
 | `src/game/engine/` | `takeTurn` and everything under it: movement, encounters, combat, monster AI |
 | `src/game/carry.ts` | `applyCarry` — the one post-pass over a base level |
+| `src/game/bot/` | Headless play. `runDeep` is `App.tsx`'s level loop without the clock; `Policy` is the seam a play style plugs into, so the same seeds can be measured under several. One style exists. |
 | `src/pomodoro/schedule.ts` | Pure gate logic. Takes `now` and `PomodoroConfig`. |
 | `src/pomodoro/run.ts` | `newRun`, `advanceRun` — the three-branch choice |
 | `src/pomodoro/persistence.ts` | Three versioned localStorage slots |

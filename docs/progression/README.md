@@ -110,11 +110,13 @@ and zero new kinds.
 The first four are the short-term plan as of 2026-09-07 and are repeated in
 [PLAN.md](../PLAN.md#what-is-next); the rest is the longer direction, if it is taken.
 
-1. **The harness, as a failing test.** Bot-play depths 1–25 and assert the one thing already known:
-   a shield-collecting bot cannot die past depth 4 or so. Print the per-depth table from
-   [findings.md](findings.md#measure-before-tuning) as a side effect. **Not a tuning target** — the
-   game is expected to change a lot before balance is worth optimizing, and the harness is there to
-   keep that change honest.
+1. **The harness, as a failing test.** Built 2026-09-07: `src/game/bot/` bot-plays depths 1–25 and
+   `harness.test.ts` asserts, under `it.fails`, the one thing already known — a shield-collecting bot
+   cannot die past depth 4 or so. It prints the per-depth table from
+   [findings.md](findings.md#measure-before-tuning) as a side effect, and `pnpm deep-run` prints it
+   on its own; what it shows today is [recorded there](findings.md#measured-2026-09-07). **Not a
+   tuning target** — the game is expected to change a lot before balance is worth optimizing, and the
+   harness is there to keep that change honest. Flip the test to a plain `it` in step 2.
 2. **Fusion**, in `applyCarry`. Smallest change, fixes the armour finding, makes the test pass,
    compresses the display. Independent of arcs, and the first built instance of
    [the break matures your inventory](elements.md#the-pomodoro-native-mechanics).
